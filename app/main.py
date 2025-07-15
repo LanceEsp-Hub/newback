@@ -95,7 +95,6 @@
 #     return {"status": "✅ FastAPI backend is running"}
 
 
-
 #!/usr/bin/env python3
 """
 Railway setup script for Pet Management API
@@ -106,14 +105,12 @@ import asyncio
 import os
 from sqlalchemy import create_engine, text
 from app.database.database import Base, engine
-from app.models.models import User, Pet, Message, Notification, SuccessStory
+from app.models import models
 from fastapi import FastAPI, HTTPException, Depends, status, File, UploadFile, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
-import uvicorn
-from decouple import config
+from starlette.middleware.sessions import SessionMiddleware
 from app.routers import (
     auth_router, 
     user_router, 
@@ -125,29 +122,35 @@ from app.routers import (
     message_router,
     admin_router,
     success_stories_router,
-    security_router,
-    file_upload_router
+    security_router
 )
 from pathlib import Path
 
+# Configuration
 SECRET_KEY = os.getenv("SESSION_SECRET_KEY", "asdasdasdsad")
 UPLOAD_DIR = Path("app/uploads/pet_images")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 Path("app/uploads/success_stories").mkdir(parents=True, exist_ok=True)
+Path("app/uploads/messages").mkdir(parents=True, exist_ok=True)
 
+# Create database tables
 models.Base.metadata.create_all(bind=engine)
 
+# Initialize FastAPI app
 app = FastAPI(
     title="Pet Management API",
-    description="A comprehensive API for pet management system",
+    description="A comprehensive pet management system",
     version="1.0.0"
 )
 
-# CORS middleware
+# Add session middleware
+app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
+
+# CORS configuration
 origins = [
     "http://localhost:3000",
     "https://smart-pet-eta.vercel.app",
-    os.getenv("FRONTEND_URL", "http://localhost:3000"),  # Added for Railway
+    os.getenv("FRONTEND_URL", "http://localhost:3000"),
 ]
 
 app.add_middleware(
@@ -156,7 +159,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"]  # Add this line
+    expose_headers=["*"]
 )
 
 # Include routers
@@ -171,39 +174,29 @@ app.include_router(message_router.router, prefix="/api/messages", tags=["Message
 app.include_router(admin_router.router, prefix="/api/admin", tags=["Admin"])
 app.include_router(success_stories_router.router, prefix="/api/success-stories", tags=["Success Stories"])
 app.include_router(security_router.router, prefix="/api/security", tags=["Security"])
-app.include_router(file_upload_router.router, prefix="/api/upload", tags=["File Upload"])
 
 # Static files
 app.mount("/uploads/pet_images", StaticFiles(directory="app/uploads/pet_images"), name="pet_images")
 app.mount("/uploads/messages", StaticFiles(directory="app/uploads/messages"), name="message_images")
 app.mount("/uploads/success_stories", StaticFiles(directory="app/uploads/success_stories"), name="stories_images")
-app.mount("/static", StaticFiles(directory="app/uploads"), name="static")
 
-# Health check endpoint
+# Health check endpoints
 @app.get("/")
-async def health_check():
-    return {"status": "healthy", "message": "Pet Management API is running"}
+def root():
+    return {"status": "✅ FastAPI backend is running", "message": "Pet Management API"}
 
 @app.get("/health")
-async def health():
-    return {"status": "ok"}
+def health_check():
+    return {"status": "healthy", "service": "pet-management-api"}
 
+# For Railway deployment
 if __name__ == "__main__":
-    print("🚀 Setting up Railway deployment...")
-    
-    # Check environment variables
-    required_vars = ["DATABASE_URL", "SECRET_KEY"]
-    missing_vars = [var for var in required_vars if not os.getenv(var)]
-    
-    if missing_vars:
-        print(f"❌ Missing environment variables: {', '.join(missing_vars)}")
-        exit(1)
-    
-    # Run setup
-    asyncio.run(setup_database())
-    asyncio.run(create_admin_user())
-    
-    print("✅ Railway setup complete!")
-
+    import uvicorn
     port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=False)
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=port,
+        reload=False,
+        workers=1
+    )
