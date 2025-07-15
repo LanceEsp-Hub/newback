@@ -96,7 +96,6 @@
 
 
 
-
 #!/usr/bin/env python3
 """
 Railway setup script for Pet Management API
@@ -108,8 +107,13 @@ import os
 from sqlalchemy import create_engine, text
 from app.database.database import Base, engine
 from app.models.models import User, Pet, Message, Notification, SuccessStory
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Depends, status, File, UploadFile, Form
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
+import uvicorn
+from decouple import config
 from app.routers import (
     auth_router, 
     user_router, 
@@ -121,10 +125,9 @@ from app.routers import (
     message_router,
     admin_router,
     success_stories_router,
-    security_router
-      
+    security_router,
+    file_upload_router
 )
-from fastapi.staticfiles import StaticFiles  # Add this import
 from pathlib import Path
 
 SECRET_KEY = os.getenv("SESSION_SECRET_KEY", "asdasdasdsad")
@@ -134,11 +137,13 @@ Path("app/uploads/success_stories").mkdir(parents=True, exist_ok=True)
 
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI()
+app = FastAPI(
+    title="Pet Management API",
+    description="A comprehensive API for pet management system",
+    version="1.0.0"
+)
 
-app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
-
-# Updated CORS for Railway deployment - keeping your original localhost:3000
+# CORS middleware
 origins = [
     "http://localhost:3000",
     "https://smart-pet-eta.vercel.app",
@@ -154,32 +159,34 @@ app.add_middleware(
     expose_headers=["*"]  # Add this line
 )
 
-# Include the routers - keeping all your original router includes
-app.include_router(user_router.router)  # Added user router
+# Include routers
+app.include_router(auth_router.router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(user_router.router, prefix="/api/users", tags=["Users"])
+app.include_router(google_auth_router.router, prefix="/api/google-auth", tags=["Google Auth"])
+app.include_router(password_reset_router.router, prefix="/api/password-reset", tags=["Password Reset"])
+app.include_router(pet_dashboard_router.router, prefix="/api/pet-dashboard", tags=["Pet Dashboard"])
+app.include_router(pet_router.router, prefix="/api/pets", tags=["Pets"])
+app.include_router(notification_router.router, prefix="/api/notifications", tags=["Notifications"])
+app.include_router(message_router.router, prefix="/api/messages", tags=["Messages"])
+app.include_router(admin_router.router, prefix="/api/admin", tags=["Admin"])
+app.include_router(success_stories_router.router, prefix="/api/success-stories", tags=["Success Stories"])
+app.include_router(security_router.router, prefix="/api/security", tags=["Security"])
+app.include_router(file_upload_router.router, prefix="/api/upload", tags=["File Upload"])
 
-app.include_router(auth_router.router, prefix="/api")
-app.include_router(user_router.router, prefix="/api")
-app.include_router(google_auth_router.router)
-app.include_router(password_reset_router.router, prefix="/api")
-app.include_router(pet_dashboard_router.router)
-app.include_router(notification_router.router)
-app.include_router(message_router.router)
-app.include_router(admin_router.router)
-app.include_router(success_stories_router.router)
-app.include_router(security_router.router)
-
-# backend/app/main.py (add this line with other router includes)
-app.include_router(pet_router.router)
-
-# Mount the static directory - keeping your original static file mounts
+# Static files
 app.mount("/uploads/pet_images", StaticFiles(directory="app/uploads/pet_images"), name="pet_images")
 app.mount("/uploads/messages", StaticFiles(directory="app/uploads/messages"), name="message_images")
 app.mount("/uploads/success_stories", StaticFiles(directory="app/uploads/success_stories"), name="stories_images")
+app.mount("/static", StaticFiles(directory="app/uploads"), name="static")
 
-# Keeping your original health check
+# Health check endpoint
 @app.get("/")
-def health_check():
-    return {"status": "✅ FastAPI backend is running"}
+async def health_check():
+    return {"status": "healthy", "message": "Pet Management API is running"}
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 if __name__ == "__main__":
     print("🚀 Setting up Railway deployment...")
@@ -198,13 +205,5 @@ if __name__ == "__main__":
     
     print("✅ Railway setup complete!")
 
-    import uvicorn
-    # Railway provides PORT environment variable, fallback to 8000 for local development
     port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=port,
-        reload=False,
-        workers=1
-    )
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=False)
