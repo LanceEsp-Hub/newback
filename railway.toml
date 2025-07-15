@@ -2,11 +2,10 @@
 builder = "dockerfile"
 
 [deploy]
-healthcheckPath = "/"
+healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 3
+restartPolicyMaxRetries = 10
 
 [env]
-PORT = { default = "8000" }
-PYTHONPATH = "/app"
+PORT = "8000"
