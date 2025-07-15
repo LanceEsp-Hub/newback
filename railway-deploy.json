@@ -1,0 +1,39 @@
+{
+  "name": "Pet Management API",
+  "description": "FastAPI backend for pet management system with AI features",
+  "keywords": ["fastapi", "python", "postgresql", "ai", "pets"],
+  "env": {
+    "DATABASE_URL": {
+      "description": "PostgreSQL database URL (automatically provided by Railway)",
+      "required": true
+    },
+    "SESSION_SECRET_KEY": {
+      "description": "Secret key for session management",
+      "generator": "secret"
+    },
+    "JWT_SECRET_KEY": {
+      "description": "Secret key for JWT tokens",
+      "generator": "secret"
+    },
+    "GOOGLE_CLIENT_ID": {
+      "description": "Google OAuth Client ID",
+      "required": false
+    },
+    "GOOGLE_CLIENT_SECRET": {
+      "description": "Google OAuth Client Secret",
+      "required": false
+    },
+    "FRONTEND_URL": {
+      "description": "Frontend application URL for CORS",
+      "value": "https://smart-pet-eta.vercel.app"
+    }
+  },
+  "build": {
+    "commands": ["pip install -r requirements.txt"]
+  },
+  "deploy": {
+    "web": {
+      "start": "python -m app.main"
+    }
+  }
+}
