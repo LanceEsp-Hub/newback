@@ -5,7 +5,7 @@
   "env": {
     "DATABASE_URL": {
       "description": "Supabase PostgreSQL database URL",
-      "value": "postgresql://postgres.fkpimtcxncgwtdsfyrjb:lance@aws-0-us-east-2.pooler.supabase.com:6543/postgres"
+      "value": "postgresql://postgres.fkpimtcxncgwtdsfyrjb:0Xygen666@Lance@aws-0-us-east-2.pooler.supabase.com:6543/postgres"
     },
     "SECRET_KEY": {
       "description": "Secret key for session management",
