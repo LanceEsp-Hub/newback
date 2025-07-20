@@ -133,6 +133,42 @@ async def create_pet(pet_data: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=f"Failed to create pet: {str(e)}")
 
 
+# @router.post("/verify-pet-image")
+# async def verify_pet_image_endpoint(file: UploadFile = File(...)):
+#     try:
+#         # Verify the file is actually an image first
+#         if not file.content_type.startswith('image/'):
+#             return {
+#                 "is_valid": False,
+#                 "message": "File is not a valid image",
+#                 "error": "invalid_file_type"
+#             }
+
+#         # Read the first few bytes to verify it's an image
+#         header = await file.read(10)
+#         await file.seek(0)
+#         if not header.startswith((b'\xff\xd8', b'\x89PNG\r\n\x1a\n')):  # JPEG/PNG magic numbers
+#             return {
+#                 "is_valid": False,
+#                 "message": "Invalid image file format",
+#                 "error": "invalid_image_format"
+#             }
+
+#         # Now try the pet verification
+#         verification = await verify_pet_image(file)
+#         await file.seek(0)  # Reset for potential reuse
+        
+#         return verification
+
+#     except Exception as e:
+#         await file.seek(0)
+#         return {
+#             "is_valid": False,
+#             "message": "Could not process image",
+#             "error": "processing_error",
+#             "details": str(e)
+#         }
+
 @router.post("/verify-pet-image")
 async def verify_pet_image_endpoint(file: UploadFile = File(...)):
     try:
@@ -160,6 +196,16 @@ async def verify_pet_image_endpoint(file: UploadFile = File(...)):
         
         return verification
 
+    except HTTPException as he:
+        await file.seek(0)
+        if he.status_code == 503:
+            return {
+                "is_valid": False,
+                "message": he.detail.get("message", "ML feature unavailable"),
+                "error": he.detail.get("type", "torch_not_available")
+            }
+        raise he  # re-raise other HTTPExceptions
+
     except Exception as e:
         await file.seek(0)
         return {
@@ -168,6 +214,7 @@ async def verify_pet_image_endpoint(file: UploadFile = File(...)):
             "error": "processing_error",
             "details": str(e)
         }
+
 
 @router.post("/upload-image")
 async def upload_pet_image(
