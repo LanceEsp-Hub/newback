@@ -1,11 +1,21 @@
-[build]
-builder = "dockerfile"
+# [build]
+# builder = "dockerfile"
+
+# [deploy]
+# healthcheckPath = "/health"
+# healthcheckTimeout = 100
+# restartPolicyType = "on_failure"
+# restartPolicyMaxRetries = 10
+
+# [env]
+# PORT = "8000"
+
 
 [deploy]
+startCommand = "python main.py"
 healthcheckPath = "/health"
-healthcheckTimeout = 100
-restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 10
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
 
-[env]
-PORT = "8000"
+[build]
+builder = "NIXPACKS"
