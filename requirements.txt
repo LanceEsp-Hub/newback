@@ -45,8 +45,7 @@ typing-extensions==4.8.0
 supabase==2.3.0
 
 # Machine Learning - Add torch for AI features
-torch==2.1.0
-torchvision==0.16.0
+
 numpy==1.24.3
 
 # Google OAuth and authentication
