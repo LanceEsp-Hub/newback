@@ -445,10 +445,9 @@ async def global_exception_handler(request, exc):
 # For Railway deployment
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 8000))
     uvicorn.run(
-        "app.main:app",
+        app,                     # ← Directly run the app object
         host="0.0.0.0",
-        port=port,
-        reload=settings.DEBUG
+        port=int(os.environ.get("PORT", 8000))
     )
+
