@@ -4,28 +4,52 @@
   "keywords": ["fastapi", "python", "postgresql", "ai", "pets"],
   "env": {
     "DATABASE_URL": {
-      "description": "PostgreSQL database URL (automatically provided by Railway)",
-      "required": true
+      "description": "Supabase PostgreSQL database URL",
+      "value": "postgresql://postgres.fkpimtcxncgwtdsfyrjb:lance@aws-0-us-east-2.pooler.supabase.com:6543/postgres"
     },
-    "SESSION_SECRET_KEY": {
+    "SECRET_KEY": {
       "description": "Secret key for session management",
-      "generator": "secret"
+      "value": "asdasdasdsad"
     },
-    "JWT_SECRET_KEY": {
-      "description": "Secret key for JWT tokens",
-      "generator": "secret"
+    "MAIL_USERNAME": {
+      "description": "Email username for notifications",
+      "value": "pogisicj31@gmail.com"
+    },
+    "MAIL_PASSWORD": {
+      "description": "Email password for notifications",
+      "value": "huqiwrsknzfyxqkh"
+    },
+    "MAIL_FROM": {
+      "description": "Email from address",
+      "value": "nas@gmail.com"
+    },
+    "MAIL_PORT": {
+      "description": "Email server port",
+      "value": "587"
+    },
+    "MAIL_SERVER": {
+      "description": "Email server hostname",
+      "value": "smtp.gmail.com"
     },
     "GOOGLE_CLIENT_ID": {
       "description": "Google OAuth Client ID",
-      "required": false
+      "value": "653397573990-30qo6aca71lgldvilfhktc08n3280qhn.apps.googleusercontent.com"
     },
     "GOOGLE_CLIENT_SECRET": {
       "description": "Google OAuth Client Secret",
-      "required": false
+      "value": "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"
     },
     "FRONTEND_URL": {
       "description": "Frontend application URL for CORS",
       "value": "https://smart-pet-eta.vercel.app"
+    },
+    "SUPABASE_URL": {
+      "description": "Supabase project URL",
+      "value": "https://fkpimtcxncgwtdsfyrjb.supabase.co"
+    },
+    "SUPABASE_ANON_KEY": {
+      "description": "Supabase anonymous public key",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrcGltdGN4bmNnd3Rkc2Z5cmpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI2OTQyODEsImV4cCI6MjA2ODI3MDI4MX0.vZWZNOGRekiuudIQM1RM9dNAJy8dRcjXU6pglwcyPm4"
     }
   },
   "build": {
@@ -33,7 +57,7 @@
   },
   "deploy": {
     "web": {
-      "start": "python -m app.main"
+      "start": "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     }
   }
 }
