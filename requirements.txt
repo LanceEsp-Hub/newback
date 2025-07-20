@@ -1,6 +1,6 @@
 # Core FastAPI and web framework
 fastapi==0.104.1
-uvicorn[standard]==0.24.0
+uvicorn==0.24.0
 python-multipart==0.0.6
 
 # Database
@@ -8,8 +8,8 @@ sqlalchemy==2.0.23
 psycopg2-binary==2.9.9
 
 # Authentication and Security
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
+python-jose==3.3.0
+passlib==1.7.4
 bcrypt==4.1.2
 
 # Data validation and settings
@@ -21,26 +21,12 @@ email-validator==2.1.0
 python-dotenv==1.0.0
 python-decouple==3.8
 
-# Email functionality
-fastapi-mail==1.4.1
-
 # File handling and async operations
 aiofiles==23.2.1
 
-# Image processing
-pillow==10.1.0
-
-# Google OAuth and authentication
-google-auth==2.25.2
-google-auth-oauthlib==1.1.0
-authlib==1.2.1
-
-# HTTP client and utilities - Fixed version for supabase compatibility
+# HTTP client and utilities
 httpx==0.24.1
 requests==2.31.0
-
-# Geospatial calculations
-geopy==2.4.1
 
 # Template engine
 jinja2==3.1.2
@@ -57,11 +43,27 @@ pyjwt==2.8.0
 # Additional utilities
 typing-extensions==4.8.0
 
-# Supabase and Postgrest - Fixed versions
+# Supabase
 supabase==2.3.0
-postgrest==0.13.0
 
 # Machine Learning - Add torch for AI features
 torch==2.1.0
 torchvision==0.16.0
 numpy==1.24.3
+
+# Google OAuth and authentication
+google-auth==2.25.2
+google-auth-oauthlib==1.1.0
+authlib==1.2.1
+
+# Geospatial calculations
+geopy==2.4.1
+
+# Email functionality
+fastapi-mail==1.4.1
+
+# Image processing
+pillow==10.1.0
+
+# Postgrest - Fixed version
+postgrest==0.13.0
