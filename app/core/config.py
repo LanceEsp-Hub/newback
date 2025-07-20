@@ -7,7 +7,7 @@ load_dotenv()
 
 class Settings:
     # Database
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres.fkpimtcxncgwtdsfyrjb:lance@aws-0-us-east-2.pooler.supabase.com:6543/postgres")
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres.fkpimtcxncgwtdsfyrjb:0Xygen666@Lance@aws-0-us-east-2.pooler.supabase.com:6543/postgres")
     
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "asdasdasdsad")
