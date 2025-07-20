@@ -683,12 +683,12 @@ from PIL import Image
 try:
     from tensorflow.keras.preprocessing import image
     from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
-    from PIL import Image
-    import numpy as np
     from tensorflow.keras.applications import MobileNetV2
+    import numpy as np
+    from PIL import Image
     USE_TENSORFLOW = True
 except ImportError:
-    print("TensorFlow not available. Feature extraction will be disabled.")
+    print("TensorFlow not installed. PetFeatureExtractor will be disabled.")
     USE_TENSORFLOW = False
 
 class PetFeatureExtractor:
