@@ -11,6 +11,7 @@ psycopg2-binary==2.9.9
 python-jose==3.3.0
 passlib==1.7.4
 bcrypt==4.1.2
+argon2-cffi==23.1.0
 
 # Data validation and settings
 pydantic==2.5.0
