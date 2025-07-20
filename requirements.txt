@@ -1,6 +1,6 @@
 # Core FastAPI and web framework
 fastapi==0.104.1
-uvicorn==0.24.0
+uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 
 # Database
@@ -8,8 +8,8 @@ sqlalchemy==2.0.23
 psycopg2-binary==2.9.9
 
 # Authentication and Security
-python-jose==3.3.0
-passlib==1.7.4
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
 bcrypt==4.1.2
 
 # Data validation and settings
@@ -56,3 +56,7 @@ pyjwt==2.8.0
 
 # Additional utilities
 typing-extensions==4.8.0
+
+# Supabase and Postgrest
+supabase==2.3.0
+postgrest==0.13.0
