@@ -11,6 +11,10 @@
       "description": "Secret key for session management",
       "value": "asdasdasdsad"
     },
+    "JWT_SECRET_KEY": {
+      "description": "JWT secret key",
+      "value": "asdasdasdsad"
+    },
     "MAIL_USERNAME": {
       "description": "Email username for notifications",
       "value": "pogisicj31@gmail.com"
