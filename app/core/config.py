@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+from typing import Optional
 
 # Load environment variables from a .env file (if using one)
 load_dotenv()
@@ -10,6 +11,7 @@ class Settings:
     
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "asdasdasdsad")
+    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "asdasdasdsad")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
@@ -28,12 +30,15 @@ class Settings:
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "https://fkpimtcxncgwtdsfyrjb.supabase.co")
     SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrcGltdGN4bmNnd3Rkc2Z5cmpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI2OTQyODEsImV4cCI6MjA2ODI3MDI4MX0.vZWZNOGRekiuudIQM1RM9dNAJy8dRcjXU6pglwcyPm4")
     
+    # CORS
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "https://smart-pet-eta.vercel.app")
+    
     # Environment
     ENVIRONMENT: str = os.getenv("RAILWAY_ENVIRONMENT", "production")
     
     # App settings
     APP_NAME: str = "Pet Adoption API"
     DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
-    ALLOWED_HOSTS: list = ["*"]  # Configure as needed for production
+    ALLOWED_HOSTS: list = ["*"]
 
 settings = Settings()
