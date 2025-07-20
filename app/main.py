@@ -143,27 +143,23 @@
 
 
 
-
 #!/usr/bin/env python3
 """
-Railway setup script for Pet Management API
-Run this after deploying to Railway to set up the database
+FastAPI Pet Management Application
 """
 
-import asyncio
 import os
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import Session
+from sqlalchemy import text
 from typing import Annotated
-from app.database.database import Base, engine, get_db
-from app.models import models
+from .database.database import Base, engine, get_db
+from .models import models
 from fastapi import FastAPI, HTTPException, Depends, status, File, UploadFile, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse  # ← Added missing import
+from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
-from app.routers import (
+from .routers import (
     auth_router, 
     user_router, 
     google_auth_router, 
@@ -177,7 +173,7 @@ from app.routers import (
     security_router,
     file_upload_router
 )
-from app.core.config import settings
+from .core.config import settings
 from pathlib import Path
 
 # Configuration
@@ -244,9 +240,11 @@ async def health_check():
         return {
             "status": "healthy", 
             "message": "Pet Adoption API is running",
-            "database": "connected"
+            "database": "connected",
+            "port": os.environ.get("PORT", "unknown")
         }
     except Exception as e:
+        print(f"Health check failed: {str(e)}")
         # Return 503 Service Unavailable if database is down
         return JSONResponse(
             status_code=503,
@@ -263,40 +261,44 @@ async def health_check_k8s():
     """Alternative health check endpoint (Kubernetes style)"""
     return {"status": "ok"}
 
-# Example of a root endpoint
+# Root endpoint
 @app.get("/", tags=["Root"])
 async def read_root():
-    return {"message": "Welcome to Pet Adoption API", "docs": "/docs"}
+    return {
+        "message": "Welcome to Pet Adoption API", 
+        "docs": "/docs",
+        "health": "/health"
+    }
 
-# You can add more global dependencies or event handlers here
+# Startup and shutdown events
 @app.on_event("startup")
 async def startup_event():
-    print("Application startup...")
-    print(f"Server starting on port {os.environ.get('PORT', '8000')}")
-    # Add any startup logic here, e.g., connect to external services
+    print("🚀 Pet Adoption API starting up...")
+    print(f"📍 Port: {os.environ.get('PORT', 'Not set')}")
+    print(f"🔧 Environment: {'Development' if settings.DEBUG else 'Production'}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    print("Application shutdown...")
-    # Add any shutdown logic here, e.g., close database connections
+    print("👋 Pet Adoption API shutting down...")
 
-# Exception handler
+# Global exception handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
-    print(f"Global exception: {str(exc)}")
+    print(f"❌ Global exception: {str(exc)}")
     return JSONResponse(
         status_code=500,
         content={"detail": f"Internal server error: {str(exc)}"}
     )
 
-# For Railway deployment
+# For Railway deployment and local development
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
-    print(f"Starting server on port {port}")
+    print(f"🚀 Starting server on port {port}")
     uvicorn.run(
-        app,                     # ← Directly run the app object
+        "app.main:app",
         host="0.0.0.0",
         port=port,
-        log_level="info"
+        log_level="info",
+        reload=False  # Set to True for local development
     )
