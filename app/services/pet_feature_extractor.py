@@ -668,16 +668,10 @@
         
 #         return pet_ids
 
-
 import os
 import json
-import numpy as np
 from datetime import datetime
 from pathlib import Path
-
-from tensorflow.keras.preprocessing import image
-from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
-from PIL import Image
 
 # Try importing TensorFlow-related modules
 try:
