@@ -679,35 +679,38 @@ from tensorflow.keras.preprocessing import image
 from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 from PIL import Image
 
+# Try importing TensorFlow-related modules
+try:
+    from tensorflow.keras.preprocessing import image
+    from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
+    from PIL import Image
+    import numpy as np
+    from tensorflow.keras.applications import MobileNetV2
+    USE_TENSORFLOW = True
+except ImportError:
+    print("TensorFlow not available. Feature extraction will be disabled.")
+    USE_TENSORFLOW = False
+
 class PetFeatureExtractor:
     def __init__(self):
-        self.model = None  # Lazy-loaded
+        self.model = None
         self.img_size = (224, 224)
 
         self.type_weights = {
-            'dog': {
-                'main': 0.4,
-                'face': 0.3,
-                'side': 0.2,
-                'fur': 0.1
-            },
-            'cat': {
-                'face': 0.5,
-                'main': 0.3,
-                'side': 0.15,
-                'fur': 0.05
-            }
+            'dog': {'main': 0.4, 'face': 0.3, 'side': 0.2, 'fur': 0.1},
+            'cat': {'face': 0.5, 'main': 0.3, 'side': 0.15, 'fur': 0.05}
         }
 
     def get_model(self):
-        """Lazy-load MobileNetV2 model"""
+        if not USE_TENSORFLOW:
+            return None
         if self.model is None:
-            from tensorflow.keras.applications import MobileNetV2
             self.model = MobileNetV2(weights='imagenet', include_top=False, pooling='avg')
         return self.model
 
-    def load_and_preprocess(self, img_path):
-        """Load and preprocess image for feature extraction"""
+def load_and_preprocess(self, img_path):
+        if not USE_TENSORFLOW:
+            return None
         try:
             img = Image.open(img_path)
             if img.mode != 'RGB':
@@ -722,11 +725,15 @@ class PetFeatureExtractor:
             return None
 
     def extract_features(self, img_path):
-        """Extract features from an image using MobileNetV2"""
+        if not USE_TENSORFLOW:
+            print("TensorFlow not enabled. Skipping feature extraction.")
+            return None
         img = self.load_and_preprocess(img_path)
         if img is None:
             return None
         model = self.get_model()
+        if model is None:
+            return None
         features = model.predict(img)
         return features.flatten().tolist()
 
