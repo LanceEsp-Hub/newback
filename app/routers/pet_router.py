@@ -1,4 +1,5 @@
 # # backend/app/routers/pet_router.py
+# backend/app/routers/pet_router.py
 from fastapi import APIRouter, HTTPException, Depends, status, Body, UploadFile, Query, File, Form
 from sqlalchemy.orm import Session
 from app.database.database import get_db
@@ -13,8 +14,6 @@ from fastapi.staticfiles import StaticFiles
 from ..services.pet_detector import verify_pet_image
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm.attributes import flag_modified
-from ..services.pet_feature_extractor import PetFeatureExtractor
-import json
 from ..models.models import Pet
 from sqlalchemy import func
 
@@ -24,21 +23,30 @@ import uuid
 from pathlib import Path
 from PIL import Image
 import io
-import tensorflow as tf
+import json
 
+# === TensorFlow conditional import ===
+try:
+    import tensorflow as tf
+    from ..services.pet_feature_extractor import PetFeatureExtractor
+    USE_TENSORFLOW = True
+    feature_extractor = PetFeatureExtractor()
+except ImportError:
+    print("TensorFlow not available. Feature extraction is disabled.")
+    USE_TENSORFLOW = False
+    feature_extractor = None
 
-# Use Path for better path handling
+# === Upload directory setup ===
 UPLOAD_DIR = Path("app/uploads/pet_images")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)  # Create directory if it doesn't exist
 
-feature_extractor = PetFeatureExtractor()
-
 router = APIRouter(prefix="/api/pets", tags=["pets"])
-
 router.mount("/uploads/pet_images", StaticFiles(directory="app/uploads/pet_images"), name="pet_images")
 
+# If you have old string path usage, keep for compatibility
 UPLOAD_DIR = "app/uploads/pet_images"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
 
 
 # Add ONLY if needed ↓
