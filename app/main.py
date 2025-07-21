@@ -207,7 +207,9 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(auth_router.router, prefix="/api/auth", tags=["Authentication"])
+# app.include_router(auth_router.router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(auth_router.router, prefix="/api")
+
 app.include_router(user_router.router, prefix="/api/users", tags=["Users"])
 app.include_router(google_auth_router.router, prefix="/api/auth/google", tags=["Google Auth"])
 app.include_router(password_reset_router.router, prefix="/api/password", tags=["Password Reset"])
