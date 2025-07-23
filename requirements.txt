@@ -1,3 +1,73 @@
+
+// # Core FastAPI and web framework
+// fastapi==0.104.1
+// uvicorn==0.24.0
+// python-multipart==0.0.6
+
+// # Database
+// sqlalchemy==2.0.23
+// psycopg2-binary==2.9.9
+
+// # Authentication and Security
+// python-jose==3.3.0
+// passlib==1.7.4
+// bcrypt==4.1.2
+// argon2-cffi==23.1.0
+
+// # Data validation and settings
+// pydantic==2.5.0
+// pydantic-settings==2.1.0
+// email-validator==2.1.0
+
+// # Environment and configuration
+// python-dotenv==1.0.0
+
+// # File handling and async operations
+// aiofiles==23.2.1
+
+// # HTTP client
+// httpx==0.24.1
+
+// # Template engine
+// jinja2==3.1.2
+
+// # Security utilities
+// itsdangerous==2.1.2
+
+// # Date and time utilities
+// python-dateutil==2.8.2
+
+// # JSON Web Tokens
+// pyjwt==2.8.0
+
+// # Additional utilities
+// typing-extensions==4.8.0
+
+// # Supabase client
+// supabase==2.3.0
+
+// # Machine Learning - Add torch for AI features
+
+// numpy==1.24.3
+
+// # Google OAuth and authentication
+// google-auth==2.25.2
+// google-auth-oauthlib==1.1.0
+// authlib==1.2.1
+
+// # Geospatial calculations
+// geopy==2.4.1
+
+// # Email functionality
+// fastapi-mail==1.4.1
+
+// # Image processing
+// pillow==10.1.0
+
+// # Postgrest - Fixed version
+// postgrest==0.13.0
+
+
 # Core FastAPI and web framework
 fastapi==0.104.1
 uvicorn==0.24.0
@@ -40,13 +110,13 @@ python-dateutil==2.8.2
 pyjwt==2.8.0
 
 # Additional utilities
-typing-extensions==4.8.0
+typing-extensions==4.10.0  # Updated to meet torch's requirement
 
 # Supabase client
 supabase==2.3.0
 
 # Machine Learning - Add torch for AI features
-
+torch==2.6.0
 numpy==1.24.3
 
 # Google OAuth and authentication
@@ -65,6 +135,3 @@ pillow==10.1.0
 
 # Postgrest - Fixed version
 postgrest==0.13.0
-
-torch==2.6.0
-
