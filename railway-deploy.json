@@ -54,6 +54,10 @@
     "SUPABASE_ANON_KEY": {
       "description": "Supabase anonymous public key",
       "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrcGltdGN4bmNnd3Rkc2Z5cmpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI2OTQyODEsImV4cCI6MjA2ODI3MDI4MX0.vZWZNOGRekiuudIQM1RM9dNAJy8dRcjXU6pglwcyPm4"
+    },
+    "SUPABASE_KEY": {
+  "description": "Supabase service role key for uploading files",
+  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrcGltdGN4bmNnd3Rkc2Z5cmpiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MjY5NDI4MSwiZXhwIjoyMDY4MjcwMjgxfQ.GlJ-T7xHoH1ezefKLVBq5TI-Wk52MrQDqtNFNjr7ggs"
     }
   },
   "build": {
