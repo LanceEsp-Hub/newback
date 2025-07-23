@@ -164,20 +164,60 @@ def register(
 
 #     return {"message": "Email successfully verified!"}
 
+# @router.get("/verify-email")
+# def verify_email(
+#     token: str = Query(...),
+#     redirect_url: str = Query("https://smart-pet-eta.vercel.app/login"),
+#     db: Session = Depends(get_db)
+# ):
+#     """Verify the email using the provided token and redirect to login page"""
+    
+#     try:
+#         # Decode and verify the token (existing logic)
+#         email = verify_verification_token(token)
+#         if email is None:
+#             return RedirectResponse(
+#                 url=f"{redirect_url}?verified=false&error=Invalid+or+expired+token",
+#                 status_code=302
+#             )
+
+#         # Find the user by the decoded email
+#         user = db.query(models.User).filter(models.User.email == email).first()
+#         if not user:
+#             return RedirectResponse(
+#                 url=f"{redirect_url}?verified=false&error=User+not+found",
+#                 status_code=302
+#             )
+
+#         # Mark the user as verified
+#         user.is_verified = True
+#         db.commit()
+
+#         # Redirect to login page with success message
+#         return RedirectResponse(
+#             url=f"{redirect_url}?verified=true",
+#             status_code=302
+#         )
+        
+#     except Exception as e:
+#         # Handle any unexpected errors
+#         return RedirectResponse(
+#             url=f"{redirect_url}?verified=false&error={str(e).replace(' ', '+')}",
+#             status_code=302
+#         )
+
 @router.get("/verify-email")
 def verify_email(
     token: str = Query(...),
-    redirect_url: str = Query("https://smart-pet-eta.vercel.app/login"),
     db: Session = Depends(get_db)
 ):
-    """Verify the email using the provided token and redirect to login page"""
-    
+    """Verify the email using the provided token"""
     try:
-        # Decode and verify the token (existing logic)
+        # Decode and verify the token
         email = verify_verification_token(token)
         if email is None:
             return RedirectResponse(
-                url=f"{redirect_url}?verified=false&error=Invalid+or+expired+token",
+                url="/login?verification_error=invalid_token",
                 status_code=302
             )
 
@@ -185,7 +225,7 @@ def verify_email(
         user = db.query(models.User).filter(models.User.email == email).first()
         if not user:
             return RedirectResponse(
-                url=f"{redirect_url}?verified=false&error=User+not+found",
+                url="/login?verification_error=user_not_found",
                 status_code=302
             )
 
@@ -193,16 +233,15 @@ def verify_email(
         user.is_verified = True
         db.commit()
 
-        # Redirect to login page with success message
+        # Redirect to login page without query params
         return RedirectResponse(
-            url=f"{redirect_url}?verified=true",
+            url="/login",
             status_code=302
         )
         
     except Exception as e:
-        # Handle any unexpected errors
         return RedirectResponse(
-            url=f"{redirect_url}?verified=false&error={str(e).replace(' ', '+')}",
+            url="/login?verification_error=server_error",
             status_code=302
         )
 
