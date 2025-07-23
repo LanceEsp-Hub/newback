@@ -138,10 +138,10 @@ pyjwt==2.8.0
 # Additional utilities
 typing-extensions==4.8.0
 
-# Supabase client (compatible with postgrest 0.13.0)
-supabase==2.1.1  # Downgraded to be compatible
-postgrest==0.13.0  # Your preferred version
-gotrue==2.11.4  # Compatible version
+# Supabase ecosystem (conflict-free versions)
+supabase==2.1.1  # Works with postgrest 0.13.0
+postgrest==0.13.0  # Your required version
+gotrue==2.5.5  # Compatible with httpx 0.24.1
 
 # Machine Learning
 numpy==1.24.3
