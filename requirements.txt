@@ -141,7 +141,7 @@ typing-extensions==4.8.0
 # Supabase client (compatible with postgrest 0.13.0)
 supabase==2.1.1  # Downgraded to be compatible
 postgrest==0.13.0  # Your preferred version
-gotrue==0.6.8  # Compatible version
+gotrue==2.5.5  # Compatible version
 storage-py==0.5.0  # Compatible version
 
 # Machine Learning
