@@ -109,6 +109,40 @@ pwd_context = CryptContext(
 
 router = APIRouter()
 
+# @router.post("/register", response_model=schemas.UserResponse)
+# def register(
+#     user: schemas.UserCreate, 
+#     background_tasks: BackgroundTasks,
+#     db: Session = Depends(get_db),
+# ):
+#     # Check if the email is already registered
+#     existing_user = db.query(models.User).filter(models.User.email == user.email).first()
+#     if existing_user:
+#         raise HTTPException(status_code=400, detail="Email already registered")
+    
+#     # Hash the password before saving it to the database
+#     hashed_password = pwd_context.hash(user.password)
+#     new_user = models.User(
+#         email=user.email,
+#         name=user.name,
+#         hashed_password=hashed_password,
+#         is_active=True,
+#         roles="user"
+#     )                                                                           
+    
+#     # Save the new user to the database
+#     db.add(new_user)
+#     db.commit()
+#     db.refresh(new_user)
+
+#     # Generate a verification token for email verification
+#     token = generate_verification_token(new_user.email)
+
+#     # Add the email sending task to the background queue
+#     background_tasks.add_task(send_verification_email, new_user.email, token)
+
+#     return new_user
+
 @router.post("/register", response_model=schemas.UserResponse)
 def register(
     user: schemas.UserCreate, 
@@ -120,91 +154,54 @@ def register(
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    # Hash the password before saving it to the database
-    hashed_password = pwd_context.hash(user.password)
-    new_user = models.User(
-        email=user.email,
-        name=user.name,
-        hashed_password=hashed_password,
-        is_active=True,
-        roles="user"
-    )                                                                           
-    
-    # Save the new user to the database
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    try:
+        # First create notification settings with all columns set to True
+        new_notification = models.Notification(
+            new_messages=True,
+            account_updates=True,
+            pet_reminders=True,
+            marketing_emails=True,
+            push_notifications=True
+        )
+        db.add(new_notification)
+        db.commit()
+        db.refresh(new_notification)
 
-    # Generate a verification token for email verification
-    token = generate_verification_token(new_user.email)
-
-    # Add the email sending task to the background queue
-    background_tasks.add_task(send_verification_email, new_user.email, token)
-
-    return new_user
-
-
-# @router.get("/verify-email")
-# def verify_email(token: str = Query(...), db: Session = Depends(get_db)):
-#     """Verify the email using the provided token"""
-    
-#     # Decode and verify the token
-#     email = verify_verification_token(token)
-#     if email is None:
-#         raise HTTPException(status_code=400, detail="Invalid or expired token")
-
-#     # Find the user by the decoded email
-#     user = db.query(models.User).filter(models.User.email == email).first()
-#     if not user:
-#         raise HTTPException(status_code=404, detail="User not found")
-
-#     # Mark the user as verified
-#     user.is_verified = True
-#     db.commit()
-
-#     return {"message": "Email successfully verified!"}
-
-# @router.get("/verify-email")
-# def verify_email(
-#     token: str = Query(...),
-#     redirect_url: str = Query("https://smart-pet-eta.vercel.app/login"),
-#     db: Session = Depends(get_db)
-# ):
-#     """Verify the email using the provided token and redirect to login page"""
-    
-#     try:
-#         # Decode and verify the token (existing logic)
-#         email = verify_verification_token(token)
-#         if email is None:
-#             return RedirectResponse(
-#                 url=f"{redirect_url}?verified=false&error=Invalid+or+expired+token",
-#                 status_code=302
-#             )
-
-#         # Find the user by the decoded email
-#         user = db.query(models.User).filter(models.User.email == email).first()
-#         if not user:
-#             return RedirectResponse(
-#                 url=f"{redirect_url}?verified=false&error=User+not+found",
-#                 status_code=302
-#             )
-
-#         # Mark the user as verified
-#         user.is_verified = True
-#         db.commit()
-
-#         # Redirect to login page with success message
-#         return RedirectResponse(
-#             url=f"{redirect_url}?verified=true",
-#             status_code=302
-#         )
+        # Hash the password before saving it to the database
+        hashed_password = pwd_context.hash(user.password)
         
-#     except Exception as e:
-#         # Handle any unexpected errors
-#         return RedirectResponse(
-#             url=f"{redirect_url}?verified=false&error={str(e).replace(' ', '+')}",
-#             status_code=302
-#         )
+        # Create new user with default 'user' role and linked notification settings
+        new_user = models.User(
+            email=user.email,
+            name=user.name,
+            hashed_password=hashed_password,
+            is_active=True,
+            is_verified=False,  # Will be verified via email
+            roles="user",
+            notification_id=new_notification.id  # Link to the notification settings
+        )
+        
+        # Save the new user to the database
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+
+        # Generate a verification token for email verification
+        token = generate_verification_token(new_user.email)
+
+        # Add the email sending task to the background queue
+        background_tasks.add_task(send_verification_email, new_user.email, token)
+
+        return new_user
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to create user: {str(e)}"
+        )
+
+
 
 @router.get("/verify-email")
 def verify_email(
