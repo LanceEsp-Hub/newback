@@ -242,32 +242,119 @@ def verify_email(
             status_code=302
         )
 
+# @router.post("/login")
+# def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
+#     """Login a user and return a JWT token"""
+    
+#     # Look up the user by email
+#     db_user = db.query(models.User).filter(models.User.email == user.email).first()
+
+#     # Check if the user exists and the password is correct
+#     if not db_user or not pwd_context.verify(user.password, db_user.hashed_password):
+#         raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+#     # Check if the user is verified
+#     if not db_user.is_verified:
+#         raise HTTPException(status_code=403, detail="Email not verified. Please check your email.")
+
+#     # Generate a JWT token for the user
+#     token = generate_jwt_token(db_user.email)
+
+#     # Return the login response with the token and user information
+#     return {
+#         "access_token": token,
+#         "token_type": "bearer",
+#         "user_id": db_user.id,  # Include the user's ID
+#         "roles": db_user.roles,
+#         "user": {  # Include additional user data (optional)
+#             "email": db_user.email,
+#             "name": db_user.name,
+#         },
+#     }
+
+
+
 @router.post("/login")
-def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
+def login(
+    user: schemas.UserLogin, 
+    request: Request,  # Added to get client IP
+    db: Session = Depends(get_db)
+):
     """Login a user and return a JWT token"""
     
-    # Look up the user by email
-    db_user = db.query(models.User).filter(models.User.email == user.email).first()
-
-    # Check if the user exists and the password is correct
-    if not db_user or not pwd_context.verify(user.password, db_user.hashed_password):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+    # Get client IP address for logging
+    ip_address = request.client.host if request.client else None
     
-    # Check if the user is verified
-    if not db_user.is_verified:
-        raise HTTPException(status_code=403, detail="Email not verified. Please check your email.")
+    try:
+        # Look up the user by email
+        db_user = db.query(models.User).filter(models.User.email == user.email).first()
 
-    # Generate a JWT token for the user
-    token = generate_jwt_token(db_user.email)
+        # Check if the user exists and the password is correct
+        if not db_user or not pwd_context.verify(user.password, db_user.hashed_password):
+            # Log failed login attempt
+            db.add(models.LoginLog(
+                user_id=db_user.id if db_user else None,
+                email=user.email,
+                ip_address=ip_address,
+                status="failed",
+                attempt_type="login",
+                login_metadata={"error": "Invalid email or password"}
+            ))
+            db.commit()
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        
+        # Check if the user is verified
+        if not db_user.is_verified:
+            # Log failed login attempt (unverified email)
+            db.add(models.LoginLog(
+                user_id=db_user.id,
+                email=user.email,
+                ip_address=ip_address,
+                status="failed",
+                attempt_type="login",
+                login_metadata={"error": "Email not verified"}
+            ))
+            db.commit()
+            raise HTTPException(status_code=403, detail="Email not verified. Please check your email.")
 
-    # Return the login response with the token and user information
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "user_id": db_user.id,  # Include the user's ID
-        "roles": db_user.roles,
-        "user": {  # Include additional user data (optional)
-            "email": db_user.email,
-            "name": db_user.name,
-        },
-    }
+        # Generate a JWT token for the user
+        token = generate_jwt_token(db_user.email)
+
+        # Log successful login
+        db.add(models.LoginLog(
+            user_id=db_user.id,
+            email=db_user.email,
+            ip_address=ip_address,
+            status="success",
+            attempt_type="login",
+            login_metadata={"name": db_user.name}
+        ))
+        db.commit()
+
+        # Return the login response with the token and user information
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "user_id": db_user.id,
+            "roles": db_user.roles,
+            "user": {
+                "email": db_user.email,
+                "name": db_user.name,
+            },
+        }
+
+    except Exception as e:
+        # Log failed login attempt (system error)
+        db.add(models.LoginLog(
+            user_id=None,
+            email=user.email if 'user' in locals() else "unknown",
+            ip_address=ip_address,
+            status="failed",
+            attempt_type="login",
+            login_metadata={"error": str(e)}
+        ))
+        db.commit()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Login failed: {str(e)}"
+        )
