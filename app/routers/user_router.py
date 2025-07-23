@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import secrets
 from app.utils.email_utils import send_password_reset_email
 from app.models.models import User
-from supabase import create_client
+from supabase import create_client, ClientOptions
 
 from passlib.context import CryptContext
 import os
@@ -29,7 +29,12 @@ print("SUPABASE_URL:", SUPABASE_URL)
 print("SUPABASE_KEY:", SUPABASE_KEY[:5], "...")  # Only show part for safety
 
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Initialize with ClientOptions
+supabase = create_client(
+    SUPABASE_URL,
+    SUPABASE_KEY,
+    options=ClientOptions()
+)
 
 # Profile Picture Uploads
 UPLOAD_DIR = Path("app/uploads/profile_pictures")
@@ -150,29 +155,42 @@ async def upload_profile_picture(file: UploadFile = File(...)):
         filename = f"profile_{uuid.uuid4().hex[:8]}.{ext}"
         content = await file.read()
 
-        # Direct Supabase Upload
-        upload_url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{filename}"
+        # Upload to Supabase Storage
+        upload_response = supabase.storage.from_(SUPABASE_BUCKET).upload(
+            path=filename,
+            file=content,
+            file_options={"content-type": file.content_type}
+        )
 
-        headers = {
-            "Authorization": f"Bearer {SUPABASE_KEY}",
-            "Content-Type": file.content_type
-        }
+        if "error" in upload_response:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Supabase upload failed: {upload_response['error']}"
+            )
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(upload_url, headers=headers, content=content)
+        # Get public URL
+        public_url = supabase.storage.from_(SUPABASE_BUCKET).get_public_url(filename)
 
-        if response.status_code not in [200, 201]:
-            raise HTTPException(status_code=500, detail="Failed to upload to Supabase")
-
-        public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{filename}"
+        # Here you would typically save the URL to your user's profile in your database
+        # Example:
+        # if user_id:
+        #     db.query(User).filter(User.id == user_id).update({"profile_picture": public_url})
+        #     db.commit()
 
         return {
             "filename": filename,
-            "url": public_url
+            "url": public_url,
+            "message": "File uploaded successfully"
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error uploading profile picture: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred while uploading the file: {str(e)}"
+        )
 # @router.patch("/{user_id}", status_code=status.HTTP_200_OK)
 # async def update_user(
 #     user_id: int,
