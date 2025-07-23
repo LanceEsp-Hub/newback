@@ -167,7 +167,7 @@ def register(
 @router.get("/verify-email")
 def verify_email(
     token: str = Query(...),
-    redirect_url: str = Query("https://smart-pet-backend-production.up.railway.app/login"),
+    redirect_url: str = Query("https://smart-pet-eta.vercel.app/login"),
     db: Session = Depends(get_db)
 ):
     """Verify the email using the provided token and redirect to login page"""
