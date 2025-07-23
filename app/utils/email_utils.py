@@ -46,8 +46,8 @@ conf = ConnectionConfig(
 async def send_verification_email(email: str, token: str):
     # Generate verification URL that will redirect to login after verification
     verification_url = (
-        f"{os.getenv('BACKEND_URL', 'http://127.0.0.1:8000')}/api/verify-email?"
-        f"token={token}&redirect_url={os.getenv('FRONTEND_LOGIN_URL', 'http://localhost:3000/login')}"
+        f"{os.getenv('BACKEND_URL', 'https://smart-pet-backend-production.up.railway.app')}/api/verify-email?"
+        f"token={token}&redirect_url={os.getenv('FRONTEND_LOGIN_URL', 'https://smart-pet-backend-production.up.railway.app/login')}"
     )
     
     html_template = """
@@ -103,7 +103,7 @@ async def send_verification_email(email: str, token: str):
 
 
 async def send_password_reset_email(email: str, reset_token: str):
-    reset_url = f"http://localhost:3000/reset-password?token={reset_token}"
+    reset_url = f"https://smart-pet-backend-production.up.railway.app/reset-password?token={reset_token}"
 
     message = MessageSchema(
         subject="Password Reset Request",
