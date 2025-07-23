@@ -25,6 +25,10 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "profile-pictures")
 
+print("SUPABASE_URL:", SUPABASE_URL)
+print("SUPABASE_KEY:", SUPABASE_KEY[:5], "...")  # Only show part for safety
+
+
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Profile Picture Uploads
