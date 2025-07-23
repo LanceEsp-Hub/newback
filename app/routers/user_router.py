@@ -8,12 +8,13 @@ from datetime import datetime, timedelta
 import secrets
 from app.utils.email_utils import send_password_reset_email
 from app.models.models import User
-from supabase import create_client, ClientOptions
+from supabase import create_client
 
 from passlib.context import CryptContext
 import os
 import uuid
 import logging
+import httpx
 
 from pathlib import Path
 
@@ -29,12 +30,13 @@ print("SUPABASE_URL:", SUPABASE_URL)
 print("SUPABASE_KEY:", SUPABASE_KEY[:5], "...")  # Only show part for safety
 
 
-# Initialize with ClientOptions
-supabase = create_client(
-    SUPABASE_URL,
-    SUPABASE_KEY,
-    options=ClientOptions()
-)
+# Initialize Supabase client
+try:
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    logger.info("Supabase initialized successfully")
+except Exception as e:
+    logger.error(f"Supabase init failed: {str(e)}")
+    raise RuntimeError("Supabase initialization failed") from e
 
 # Profile Picture Uploads
 UPLOAD_DIR = Path("app/uploads/profile_pictures")
@@ -142,54 +144,71 @@ async def get_user(user_id: int, db: Session = Depends(get_db)):
 @router.post("/upload-picture")
 async def upload_profile_picture(file: UploadFile = File(...)):
     try:
-        if not file.filename:
-            raise HTTPException(status_code=400, detail="No file provided")
-
-        file.file.seek(0, 2)
-        file_size = file.file.tell()
-        file.file.seek(0)
-        if file_size > 5 * 1024 * 1024:
-            raise HTTPException(status_code=400, detail="File too large (max 5MB)")
-
-        ext = file.filename.split('.')[-1]
-        filename = f"profile_{uuid.uuid4().hex[:8]}.{ext}"
-        content = await file.read()
-
-        # Upload to Supabase Storage
-        upload_response = supabase.storage.from_(SUPABASE_BUCKET).upload(
-            path=filename,
-            file=content,
-            file_options={"content-type": file.content_type}
-        )
-
-        if "error" in upload_response:
+        # Validate file
+        if not file.content_type or not file.content_type.startswith('image/'):
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Supabase upload failed: {upload_response['error']}"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only image files are allowed (JPEG, PNG, WEBP)"
+            )
+
+        # Check size (5MB max)
+        file_bytes = await file.read()
+        if len(file_bytes) > 5 * 1024 * 1024:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File too large (max 5MB)"
+            )
+
+        # Generate filename
+        ext = Path(file.filename).suffix.lower()
+        valid_extensions = ['.jpg', '.jpeg', '.png', '.webp']
+        if ext not in valid_extensions:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid file extension. Allowed: {', '.join(valid_extensions)}"
+            )
+        
+        filename = f"user_{uuid.uuid4().hex}{ext}"
+
+        # Upload directly using Supabase Storage API
+        upload_url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{filename}"
+        headers = {
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": file.content_type,
+            "x-upsert": "true"  # Enable overwrite if file exists
+        }
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                upload_url,
+                headers=headers,
+                content=file_bytes
+            )
+
+        if response.status_code not in [200, 201]:
+            error_detail = response.json().get("error", {}).get("message", "Unknown error")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Supabase upload failed: {error_detail}"
             )
 
         # Get public URL
-        public_url = supabase.storage.from_(SUPABASE_BUCKET).get_public_url(filename)
-
-        # Here you would typically save the URL to your user's profile in your database
-        # Example:
-        # if user_id:
-        #     db.query(User).filter(User.id == user_id).update({"profile_picture": public_url})
-        #     db.commit()
+        public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{filename}"
 
         return {
+            "status": "success",
             "filename": filename,
             "url": public_url,
-            "message": "File uploaded successfully"
+            "size": len(file_bytes)
         }
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error uploading profile picture: {str(e)}", exc_info=True)
+        logger.error(f"Upload failed: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An error occurred while uploading the file: {str(e)}"
+            detail="File upload failed"
         )
 # @router.patch("/{user_id}", status_code=status.HTTP_200_OK)
 # async def update_user(
