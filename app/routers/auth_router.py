@@ -235,7 +235,7 @@ def verify_email(
 
         # Redirect to login page without query params
         return RedirectResponse(
-            url="/login",
+            url="https://smart-pet-eta.vercel.app/login",
             status_code=302
         )
         
