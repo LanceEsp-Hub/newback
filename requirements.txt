@@ -65,3 +65,6 @@ pillow==10.1.0
 
 # Postgrest - Fixed version
 postgrest==0.13.0
+
+torch==2.6.0
+
