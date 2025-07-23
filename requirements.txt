@@ -70,7 +70,9 @@ fastapi-mail==1.4.1
 pillow==10.1.0
 
 # Postgrest - Fixed version
-postgrest==0.13.0
+# postgrest==0.13.0
+postgrest-py==1.0.0
+
 
 supabase==2.3.1 
 gotrue==0.7.6
