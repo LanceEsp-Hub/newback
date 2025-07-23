@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 # Supabase Setup
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "profile_pictures")
+SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "profile-pictures")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -136,7 +136,6 @@ async def upload_profile_picture(file: UploadFile = File(...)):
         if not file.filename:
             raise HTTPException(status_code=400, detail="No file provided")
 
-        # Limit to 5MB
         file.file.seek(0, 2)
         file_size = file.file.tell()
         file.file.seek(0)
@@ -145,21 +144,23 @@ async def upload_profile_picture(file: UploadFile = File(...)):
 
         ext = file.filename.split('.')[-1]
         filename = f"profile_{uuid.uuid4().hex[:8]}.{ext}"
+        content = await file.read()
 
-        file_content = await file.read()
+        # Direct Supabase Upload
+        upload_url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{filename}"
 
-        # Upload to Supabase
-        response = supabase.storage.from_(SUPABASE_BUCKET).upload(
-            filename,
-            file_content,
-            {"content-type": file.content_type},
-            upsert=True
-        )
+        headers = {
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": file.content_type
+        }
 
-        if response.get("error"):
-            raise HTTPException(status_code=500, detail=response["error"]["message"])
+        async with httpx.AsyncClient() as client:
+            response = await client.post(upload_url, headers=headers, content=content)
 
-        public_url = supabase.storage.from_(SUPABASE_BUCKET).get_public_url(filename)
+        if response.status_code not in [200, 201]:
+            raise HTTPException(status_code=500, detail="Failed to upload to Supabase")
+
+        public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{filename}"
 
         return {
             "filename": filename,
@@ -168,7 +169,6 @@ async def upload_profile_picture(file: UploadFile = File(...)):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 # @router.patch("/{user_id}", status_code=status.HTTP_200_OK)
 # async def update_user(
 #     user_id: int,
