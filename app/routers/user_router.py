@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import secrets
 from app.utils.email_utils import send_password_reset_email
 from app.models.models import User
+from supabase import create_client
 
 from passlib.context import CryptContext
 import os
@@ -18,6 +19,13 @@ from pathlib import Path
 
 router = APIRouter(prefix="/api/user", tags=["users"])  # Changed tag to plural for consistency
 logger = logging.getLogger(__name__)
+
+# Supabase Setup
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "profile_pictures")
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Profile Picture Uploads
 UPLOAD_DIR = Path("app/uploads/profile_pictures")
@@ -98,30 +106,68 @@ async def get_user(user_id: int, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# @router.post("/upload-picture")
+# async def upload_profile_picture(file: UploadFile = File(...)):
+#     try:
+#         if not file.filename:
+#             raise HTTPException(status_code=400, detail="No file provided")
+
+#         filename = f"profile_{uuid.uuid4().hex[:8]}_{file.filename}"
+#         file_path = os.path.join(UPLOAD_DIR, filename)
+
+#         # Check file size (5MB max)
+#         file.file.seek(0, 2)
+#         file_size = file.file.tell()
+#         file.file.seek(0)
+#         if file_size > 5 * 1024 * 1024:
+#             raise HTTPException(status_code=400, detail="File too large (max 5MB)")
+
+#         with open(file_path, "wb") as buffer:
+#             content = await file.read()
+#             buffer.write(content)
+
+#         return {"filename": filename}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/upload-picture")
 async def upload_profile_picture(file: UploadFile = File(...)):
     try:
         if not file.filename:
             raise HTTPException(status_code=400, detail="No file provided")
 
-        filename = f"profile_{uuid.uuid4().hex[:8]}_{file.filename}"
-        file_path = os.path.join(UPLOAD_DIR, filename)
-
-        # Check file size (5MB max)
+        # Limit to 5MB
         file.file.seek(0, 2)
         file_size = file.file.tell()
         file.file.seek(0)
         if file_size > 5 * 1024 * 1024:
             raise HTTPException(status_code=400, detail="File too large (max 5MB)")
 
-        with open(file_path, "wb") as buffer:
-            content = await file.read()
-            buffer.write(content)
+        ext = file.filename.split('.')[-1]
+        filename = f"profile_{uuid.uuid4().hex[:8]}.{ext}"
 
-        return {"filename": filename}
+        file_content = await file.read()
+
+        # Upload to Supabase
+        response = supabase.storage.from_(SUPABASE_BUCKET).upload(
+            filename,
+            file_content,
+            {"content-type": file.content_type},
+            upsert=True
+        )
+
+        if response.get("error"):
+            raise HTTPException(status_code=500, detail=response["error"]["message"])
+
+        public_url = supabase.storage.from_(SUPABASE_BUCKET).get_public_url(filename)
+
+        return {
+            "filename": filename,
+            "url": public_url
+        }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # @router.patch("/{user_id}", status_code=status.HTTP_200_OK)
 # async def update_user(
