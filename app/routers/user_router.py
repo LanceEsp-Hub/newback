@@ -99,24 +99,49 @@ async def deactivate_user_account(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error deactivating account: {str(e)}"
         )
+# working code for the get user without supabase
+# @router.get("/{user_id}")
+# async def get_user(user_id: int, db: Session = Depends(get_db)):
+#     try:
+#         user = db.query(models.User).filter(models.User.id == user_id).first()
+#         if not user:
+#             raise HTTPException(status_code=404, detail="User not found")
+        
+#         return {
+#             "id": user.id,
+#             "name": user.name,
+#             "email": user.email,
+#             "profile_picture": user.profile_picture,
+#             "phone_number": user.phone_number
+#         }
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/{user_id}")
 async def get_user(user_id: int, db: Session = Depends(get_db)):
     try:
         user = db.query(models.User).filter(models.User.id == user_id).first()
         if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise HTTPException(404, detail="User not found")
+        
+        # Only add this if condition to handle profile picture
+        profile_url = None
+        if user.profile_picture:
+            profile_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{user.profile_picture}"
         
         return {
             "id": user.id,
             "name": user.name,
             "email": user.email,
-            "profile_picture": user.profile_picture,
+            "profile_picture": profile_url,  # Now returns URL or None
             "phone_number": user.phone_number
+            # ... (keep all other fields exactly as they were)
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(500, detail=str(e))
 
+
+# original working code without supabase
 # @router.post("/upload-picture")
 # async def upload_profile_picture(file: UploadFile = File(...)):
 #     try:
@@ -141,116 +166,113 @@ async def get_user(user_id: int, db: Session = Depends(get_db)):
 #     except Exception as e:
 #         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/upload-picture")
-async def upload_profile_picture(file: UploadFile = File(...)):
-    try:
-        # Validate file
-        if not file.content_type or not file.content_type.startswith('image/'):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only image files are allowed (JPEG, PNG, WEBP)"
-            )
 
-        # Check size (5MB max)
-        file_bytes = await file.read()
-        if len(file_bytes) > 5 * 1024 * 1024:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File too large (max 5MB)"
-            )
 
-        # Generate filename
-        ext = Path(file.filename).suffix.lower()
-        valid_extensions = ['.jpg', '.jpeg', '.png', '.webp']
-        if ext not in valid_extensions:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid file extension. Allowed: {', '.join(valid_extensions)}"
-            )
-        
-        filename = f"user_{uuid.uuid4().hex}{ext}"
 
-        # Upload directly using Supabase Storage API
-        upload_url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{filename}"
-        headers = {
-            "Authorization": f"Bearer {SUPABASE_KEY}",
-            "Content-Type": file.content_type,
-            "x-upsert": "true"  # Enable overwrite if file exists
-        }
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                upload_url,
-                headers=headers,
-                content=file_bytes
-            )
 
-        if response.status_code not in [200, 201]:
-            error_detail = response.json().get("error", {}).get("message", "Unknown error")
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Supabase upload failed: {error_detail}"
-            )
-
-        # Get public URL
-        public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{filename}"
-
-        return {
-            "status": "success",
-            "filename": filename,
-            "url": public_url,
-            "size": len(file_bytes)
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Upload failed: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="File upload failed"
-        )
-# @router.patch("/{user_id}", status_code=status.HTTP_200_OK)
-# async def update_user(
-#     user_id: int,
-#     user_data: dict,
-#     db: Session = Depends(get_db)
-# ):
+# working code for the supabase
+# @router.post("/upload-picture")
+# async def upload_profile_picture(file: UploadFile = File(...)):
 #     try:
-#         user = db.query(models.User).filter(models.User.id == user_id).first()
-#         if not user:
-#             raise HTTPException(status_code=404, detail="User not found")
-
-#         changes = []
-#         if "name" in user_data and user_data["name"] != user.name:
-#             changes.append(f"Name updated from {user.name} to {user_data['name']}")
-#             user.name = user_data["name"]
-        
-#         if "phone_number" in user_data and user_data["phone_number"] != user.phone_number:
-#             changes.append("Phone number updated")
-#             user.phone_number = user_data["phone_number"]
-        
-#         if "profile_picture" in user_data:
-#             changes.append("Profile picture updated")
-#             user.profile_picture = user_data["profile_picture"]
-
-#         if changes:
-#             db.commit()
-#             # Create notification about profile update
-#             create_notification(
-#                 db,
-#                 user_id,
-#                 "Profile Updated",
-#                 f"Your profile was updated: {', '.join(changes)}",
-#                 "account"
+#         # Validate file
+#         if not file.content_type or not file.content_type.startswith('image/'):
+#             raise HTTPException(
+#                 status_code=status.HTTP_400_BAD_REQUEST,
+#                 detail="Only image files are allowed (JPEG, PNG, WEBP)"
 #             )
-#             return {"message": "User updated successfully"}
-#         else:
-#             return {"message": "No changes detected"}
-            
+
+#         # Check size (5MB max)
+#         file_bytes = await file.read()
+#         if len(file_bytes) > 5 * 1024 * 1024:
+#             raise HTTPException(
+#                 status_code=status.HTTP_400_BAD_REQUEST,
+#                 detail="File too large (max 5MB)"
+#             )
+
+#         # Generate filename
+#         ext = Path(file.filename).suffix.lower()
+#         valid_extensions = ['.jpg', '.jpeg', '.png', '.webp']
+#         if ext not in valid_extensions:
+#             raise HTTPException(
+#                 status_code=status.HTTP_400_BAD_REQUEST,
+#                 detail=f"Invalid file extension. Allowed: {', '.join(valid_extensions)}"
+#             )
+        
+#         filename = f"user_{uuid.uuid4().hex}{ext}"
+
+#         # Upload directly using Supabase Storage API
+#         upload_url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{filename}"
+#         headers = {
+#             "Authorization": f"Bearer {SUPABASE_KEY}",
+#             "Content-Type": file.content_type,
+#             "x-upsert": "true"  # Enable overwrite if file exists
+#         }
+
+#         async with httpx.AsyncClient() as client:
+#             response = await client.post(
+#                 upload_url,
+#                 headers=headers,
+#                 content=file_bytes
+#             )
+
+#         if response.status_code not in [200, 201]:
+#             error_detail = response.json().get("error", {}).get("message", "Unknown error")
+#             raise HTTPException(
+#                 status_code=status.HTTP_502_BAD_GATEWAY,
+#                 detail=f"Supabase upload failed: {error_detail}"
+#             )
+
+#         # Get public URL
+#         public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{filename}"
+
+#         return {
+#             "status": "success",
+#             "filename": filename,
+#             "url": public_url,
+#             "size": len(file_bytes)
+#         }
+
+#     except HTTPException:
+#         raise
 #     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=400, detail=str(e))
+#         logger.error(f"Upload failed: {str(e)}", exc_info=True)
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail="File upload failed"
+#         )
+@router.post("/upload-picture")
+async def upload_profile_picture(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    try:
+        # 1. Validate file
+        if not file.content_type.startswith('image/'):
+            raise HTTPException(400, detail="Only images allowed")
+
+        # 2. Generate filename (same as before)
+        ext = Path(file.filename).suffix.lower()
+        filename = f"user_{uuid.uuid4().hex}{ext}"
+        content = await file.read()
+
+        # 3. Upload to Supabase (existing code)
+        res = supabase.storage.from_(SUPABASE_BUCKET).upload(
+            path=filename,
+            file=content,
+            file_options={"content-type": file.content_type}
+        )
+
+        # 4. Return response (same structure as before)
+        public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{filename}"
+        
+        return {
+            "filename": filename,  # Keep returning filename
+            "url": public_url      # And URL for immediate frontend use
+        }
+
+    except Exception as e:
+        raise HTTPException(500, detail=str(e))
 
 @router.patch("/{user_id}", status_code=status.HTTP_200_OK)
 async def update_user(
