@@ -22,6 +22,18 @@ class LocationCreate(BaseModel):
     longitude: float
     timestamp: Optional[datetime] = None
 
+    @validator('latitude')
+    def validate_lat(cls, v):
+        if abs(v) > 90:
+            raise ValueError('Latitude must be between -90 and 90')
+        return v
+
+    @validator('longitude')
+    def validate_lon(cls, v):
+        if abs(v) > 180:
+            raise ValueError('Longitude must be between -180 and 180')
+        return v
+
 class DeviceResponse(BaseModel):
     device_id: int
     unique_code: str
@@ -41,49 +53,45 @@ async def create_device_location(
     location_data: LocationCreate,
     db: Session = Depends(get_db)
 ):
-    """
-    Create a new location entry for a device
-    """
     try:
-        # Find the device by unique code
+        # Find device
         device = db.query(Device).filter(Device.unique_code == location_data.unique_code).first()
         if not device:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Device not found"
-            )
+            raise HTTPException(status_code=404, detail="Device not found")
 
-        # Update device last seen and online status
+        # Update device
         device.last_seen = location_data.timestamp or datetime.utcnow()
         device.is_online = True
-        db.commit()
 
-        # Create new location entry
+        # Create location
         new_location = Location(
             device_id=device.device_id,
             latitude=location_data.latitude,
             longitude=location_data.longitude,
             timestamp=location_data.timestamp or datetime.utcnow()
         )
-
         db.add(new_location)
         db.commit()
         db.refresh(new_location)
 
-        # Also store in Supabase
-        supabase.table("xxlocation_db").insert({
-            "device_id": device.device_id,
-            "latitude": location_data.latitude,
-            "longitude": location_data.longitude,
-            "timestamp": str(location_data.timestamp or datetime.utcnow())
-        }).execute()
+        # Optional Supabase sync
+        try:
+            supabase.table("xxlocation_db").insert({
+                "device_id": device.device_id,
+                "latitude": float(location_data.latitude),  # Explicit float
+                "longitude": float(location_data.longitude),
+                "timestamp": str(location_data.timestamp or datetime.utcnow())
+            }).execute()
+        except Exception as supabase_error:
+            print(f"Supabase sync failed: {supabase_error}")
+            # Don't fail the request, just log the error
 
         return new_location
 
     except Exception as e:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail=f"Error creating location: {str(e)}"
         )
 
