@@ -159,7 +159,7 @@ fastapi-mail==1.4.1
 
 # Image processing
 pillow==10.1.0
-
+torch==2.0.1
 
 
 # # FOR TORCH SERVICE CODE!!!
