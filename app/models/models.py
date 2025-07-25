@@ -41,6 +41,8 @@ class User(Base):
 
     sent_messages = relationship("Message", foreign_keys="Message.sender_id", back_populates="sender")
     received_messages = relationship("Message", foreign_keys="Message.receiver_id", back_populates="receiver")
+    devices = relationship("Device", back_populates="user")
+
 
 class LoginLog(Base):
     __tablename__ = "xxlogin_logs_db"
@@ -199,6 +201,7 @@ class Pet(Base):
     longitude = Column(Float, nullable=True)
 
     health_info = relationship("PetHealth", back_populates="pet", uselist=False, cascade="all, delete-orphan")
+    device = relationship("Device", back_populates="pet", uselist=False, cascade="all, delete-orphan")
 
 
 
@@ -316,3 +319,34 @@ class BlockedUser(Base):
     # Relationships
     blocker = relationship("User", foreign_keys=[blocker_id])
     blocked_user = relationship("User", foreign_keys=[blocked_user_id])
+
+
+
+class Device(Base):
+    __tablename__ = "xxdevice_db"
+    
+    device_id = Column(Integer, primary_key=True, index=True)
+    unique_code = Column(String(50), unique=True, nullable=False)  # e.g. "LILYGO-7A83-B2"
+    pet_id = Column(Integer, ForeignKey('xxpets_db.id'), nullable=True)
+    user_id = Column(Integer, ForeignKey('xxaccount_db.id'), nullable=True)
+    is_active = Column(Boolean, default=False)
+    paired_at = Column(DateTime, nullable=True)
+    last_seen = Column(DateTime, nullable=True)
+    is_online = Column(Boolean, default=False)
+    
+    # Relationships
+    pet = relationship("Pet", back_populates="device")
+    user = relationship("User", back_populates="devices")
+    locations = relationship("Location", back_populates="device", cascade="all, delete-orphan")
+
+class Location(Base):
+    __tablename__ = "xxlocation_db"
+    
+    location_id = Column(Integer, primary_key=True, index=True)
+    device_id = Column(Integer, ForeignKey('xxdevice_db.device_id'), nullable=False)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relationship
+    device = relationship("Device", back_populates="locations")
