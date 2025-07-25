@@ -199,7 +199,7 @@ async def verify_pet_image_endpoint(file: UploadFile = File(...)):
             }
 
         # Now try the pet verification
-        verification = await verify_pet_image(file)
+        verification = await verify_pet(file)
         await file.seek(0)  # Reset for potential reuse
         
         return verification
