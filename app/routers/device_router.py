@@ -54,13 +54,23 @@ async def create_device_location(
     db: Session = Depends(get_db)
 ):
     try:
-        # Find device
+        # Get current timestamp
+        timestamp = location_data.timestamp or datetime.utcnow()
+        
+        # Find or create device
         device = db.query(Device).filter(Device.unique_code == location_data.unique_code).first()
         if not device:
-            raise HTTPException(status_code=404, detail="Device not found")
+            device = Device(
+                unique_code=location_data.unique_code,
+                is_active=True,  # Auto-activate new devices
+                last_seen=timestamp,
+                is_online=True
+            )
+            db.add(device)
+            db.flush()  # Get the device_id before commit
 
-        # Update device
-        device.last_seen = location_data.timestamp or datetime.utcnow()
+        # Update device status
+        device.last_seen = timestamp
         device.is_online = True
 
         # Create location
@@ -68,31 +78,30 @@ async def create_device_location(
             device_id=device.device_id,
             latitude=location_data.latitude,
             longitude=location_data.longitude,
-            timestamp=location_data.timestamp or datetime.utcnow()
+            timestamp=timestamp
         )
         db.add(new_location)
         db.commit()
         db.refresh(new_location)
 
-        # Optional Supabase sync
+        # Optional Supabase sync (now with error handling)
         try:
             supabase.table("xxlocation_db").insert({
                 "device_id": device.device_id,
-                "latitude": float(location_data.latitude),  # Explicit float
+                "latitude": float(location_data.latitude),
                 "longitude": float(location_data.longitude),
-                "timestamp": str(location_data.timestamp or datetime.utcnow())
+                "timestamp": str(timestamp)
             }).execute()
         except Exception as supabase_error:
-            print(f"Supabase sync failed: {supabase_error}")
-            # Don't fail the request, just log the error
+            print(f"Supabase sync failed (non-critical): {supabase_error}")
 
         return new_location
 
     except Exception as e:
         db.rollback()
         raise HTTPException(
-            status_code=500,
-            detail=f"Error creating location: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error processing location: {str(e)}"
         )
 
 @router.get("/{unique_code}/locations", response_model=list[LocationResponse])
