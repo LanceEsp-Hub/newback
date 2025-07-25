@@ -16,7 +16,6 @@ RUN apt-get update && apt-get install -y \
     g++ \
     libpq-dev \
     libgl1 \          # Required for OpenGL (fixes libGL.so.1)
-    libglib2.0-0 \    # Required for GLib (supports OpenCV/PyTorch)
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
