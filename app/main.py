@@ -299,6 +299,11 @@ async def startup_event():
 async def shutdown_event():
     print("👋 Pet Adoption API shutting down...")
 
+@app.on_event("startup")
+async def startup_event():
+    from .services.pet_detector import load_model
+    load_model()
+
 # Global exception handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
