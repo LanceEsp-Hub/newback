@@ -204,151 +204,52 @@
 # #         )
 
 
-# import io
-# import os
-# import logging
-# from fastapi import FastAPI, UploadFile, HTTPException
-# from PIL import Image
-# import torch
-
-# # Configure logging
-# logging.basicConfig(level=logging.INFO)
-# logger = logging.getLogger(__name__)
-
-# app = FastAPI()
-
-# # Fix for libGL issues
-# os.environ['PYOPENGL_PLATFORM'] = 'egl'
-
-# # Initialize model
-# model = None
-
-# @app.on_event("startup")
-# async def load_model():
-#     global model
-#     try:
-#         logger.info("🚀 Starting YOLOv5 model loading...")
-        
-#         # Load with longer timeout and retry
-#         model = torch.hub.load(
-#             'ultralytics/yolov5',
-#             'yolov5s',
-#             pretrained=True,
-#             force_reload=False,
-#             trust_repo=True,
-#             timeout=300  # 5 minute timeout
-#         ).to('cpu').eval()
-        
-#         logger.info("🎉 Model loaded successfully!")
-        
-#         # Test the model with a dummy image
-#         test_image = Image.new('RGB', (640, 640), (255, 255, 255))
-#         model(test_image)
-#         logger.info("🧪 Model test inference successful!")
-        
-#     except Exception as e:
-#         logger.error(f"💥 CRITICAL: Model loading failed: {str(e)}")
-#         logger.error("Please check:")
-#         logger.error("1. Internet connection in Railway")
-#         logger.error("2. Sufficient memory (YOLOv5s needs ~2GB RAM)")
-#         logger.error("3. System dependencies (libgl1)")
-#         raise RuntimeError(f"Model loading failed: {str(e)}")
-
-# @app.post("/verify-pet")
-# async def verify_pet(file: UploadFile):
-#     if model is None:
-#         logger.error("Model not loaded - service unavailable")
-#         raise HTTPException(
-#             status_code=503,
-#             detail={
-#                 "is_valid": False,
-#                 "message": "Pet detection service unavailable",
-#                 "error": "service_unavailable",
-#                 "resolution": "Check server logs for model loading errors"
-#             }
-#         )
-
-#     try:
-#         # Verify and process image
-#         contents = await file.read()
-#         image = Image.open(io.BytesIO(contents))
-#         if image.mode != 'RGB':
-#             image = image.convert('RGB')
-
-#         # Run detection
-#         results = model(image, classes=[15, 16])  # Only cats(15) and dogs(16)
-#         detections = results.pandas().xyxy[0]
-
-#         # Prepare response
-#         has_pet = any(detections['confidence'] > 0.3) if not detections.empty else False
-        
-#         return {
-#             "is_valid": has_pet,
-#             "detected_objects": detections['name'].unique().tolist() if has_pet else [],
-#             "confidence": float(detections['confidence'].max()) if has_pet else 0.0
-#         }
-
-#     except Exception as e:
-#         logger.error(f"Image processing error: {str(e)}")
-#         raise HTTPException(
-#             status_code=500,
-#             detail={
-#                 "is_valid": False,
-#                 "message": "Image processing failed",
-#                 "error": "processing_error",
-#                 "details": str(e)
-#             }
-#         )
 import io
-import logging
+from fastapi import UploadFile, HTTPException
 from PIL import Image
-import torch
-from fastapi import HTTPException
+import numpy as np
 
-logger = logging.getLogger(__name__)
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    torch = None
 
-# Initialize model
+# Model will be initialized on first use
 model = None
 
 def load_model():
     global model
-    try:
-        logger.info("🚀 Loading YOLOv5 model...")
-        
-        # Force clean environment
-        torch.hub._validate_not_a_forked_repo = lambda a, b, c: True
-        
-        # Load with compatible settings
-        model = torch.hub.load(
-            'ultralytics/yolov5', 
-            'yolov5s', 
-            pretrained=True,
-            force_reload=True,  # Bypass cache issues
-            skip_validation=True,  # Avoid version checks
-            trust_repo=True  # Accept untrusted code
-        ).to('cpu').eval()
-        
-        logger.info("✅ Model loaded successfully!")
-        
-    except Exception as e:
-        logger.error(f"❌ Model loading failed: {str(e)}")
-        raise RuntimeError(f"Could not load model: {str(e)}")
+    if not TORCH_AVAILABLE:
+        raise RuntimeError("Torch is not available in this environment.")
 
-async def verify_pet(file):
     if model is None:
+        try:
+            model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)
+            model.to('cpu')  # Force CPU to avoid Render GPU errors
+        except Exception as e:
+            raise RuntimeError(f"Failed to load model: {str(e)}")
+
+async def verify_pet_image(file: UploadFile):
+    if not TORCH_AVAILABLE:
         raise HTTPException(
             status_code=503,
             detail={
-                "is_valid": False,
-                "message": "Pet detection service unavailable",
-                "error": "service_unavailable"
+                "message": "ML features are currently disabled in this deployment.",
+                "type": "torch_not_available"
             }
         )
 
     try:
+        # Lazy-load the model
+        load_model()
+
+        # Read image file
         contents = await file.read()
         image = Image.open(io.BytesIO(contents))
         
+        # Convert to RGB if needed
         if image.mode != 'RGB':
             image = image.convert('RGB')
         
@@ -356,24 +257,28 @@ async def verify_pet(file):
         results = model(image)
         detections = results.pandas().xyxy[0]
         
-        # Check for pets (cat=15, dog=16)
-        pet_mask = detections['class'].isin([15, 16]) & (detections['confidence'] > 0.3)
-        pet_detections = detections[pet_mask]
+        # COCO class IDs: 15=cat, 16=dog
+        has_cat = any((detections['class'] == 15) & (detections['confidence'] > 0.3))
+        has_dog = any((detections['class'] == 16) & (detections['confidence'] > 0.3))
+        
+        # Get all detected objects for error reporting
+        detected_objects = detections['name'].unique().tolist() if not detections.empty else []
+        max_confidence = float(detections['confidence'].max()) if not detections.empty else 0.0
         
         return {
-            "is_valid": not pet_detections.empty,
-            "detected_objects": pet_detections['name'].unique().tolist(),
-            "confidence": float(pet_detections['confidence'].max()) if not pet_detections.empty else 0.0
+            'is_valid': has_cat or has_dog,
+            'is_cat': has_cat,
+            'is_dog': has_dog,
+            'confidence': max_confidence,
+            'detected_objects': detected_objects
         }
 
     except Exception as e:
-        logger.error(f"Processing error: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail={
-                "is_valid": False,
-                "message": "Image processing failed",
-                "error": "processing_error",
-                "details": str(e)
+                "message": f"Image processing failed: {str(e)}",
+                "type": "processing_error"
             }
         )
+
