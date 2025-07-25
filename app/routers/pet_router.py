@@ -745,7 +745,7 @@ async def update_pet_image_endpoint(
             )
 
         # Now try the pet verification
-        verification = await verify_pet_image(file)
+        verification = await verify_pet(file)
         await file.seek(0)  # Reset for potential reuse
         
         if not verification.get('is_valid'):
