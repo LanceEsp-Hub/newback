@@ -11,7 +11,7 @@ from typing import Dict, Optional
 from app.models.models import PetSimilaritySearch
 from datetime import datetime
 from fastapi.staticfiles import StaticFiles
-from ..services.pet_detector import verify_pet_image
+from ..services.pet_detector import verify_pet
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm.attributes import flag_modified
 from ..models.models import Pet
@@ -177,7 +177,7 @@ async def create_pet(pet_data: dict, db: Session = Depends(get_db)):
 #             "details": str(e)
 #         }
 
-@router.post("/verify-pet-image")
+@router.post("/verify-pet")
 async def verify_pet_image_endpoint(file: UploadFile = File(...)):
     try:
         # Verify the file is actually an image first
