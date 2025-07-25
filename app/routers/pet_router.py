@@ -11,7 +11,7 @@ from typing import Dict, Optional
 from app.models.models import PetSimilaritySearch
 from datetime import datetime
 from fastapi.staticfiles import StaticFiles
-from ..services.pet_detector import verify_pet
+from ..services.pet_detector import verify_pet_image
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm.attributes import flag_modified
 from ..models.models import Pet
@@ -141,93 +141,10 @@ async def create_pet(pet_data: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=f"Failed to create pet: {str(e)}")
 
 
-# @router.post("/verify-pet-image")
-# async def verify_pet_image_endpoint(file: UploadFile = File(...)):
-#     try:
-#         # Verify the file is actually an image first
-#         if not file.content_type.startswith('image/'):
-#             return {
-#                 "is_valid": False,
-#                 "message": "File is not a valid image",
-#                 "error": "invalid_file_type"
-#             }
-
-#         # Read the first few bytes to verify it's an image
-#         header = await file.read(10)
-#         await file.seek(0)
-#         if not header.startswith((b'\xff\xd8', b'\x89PNG\r\n\x1a\n')):  # JPEG/PNG magic numbers
-#             return {
-#                 "is_valid": False,
-#                 "message": "Invalid image file format",
-#                 "error": "invalid_image_format"
-#             }
-
-#         # Now try the pet verification
-#         verification = await verify_pet_image(file)
-#         await file.seek(0)  # Reset for potential reuse
-        
-#         return verification
-
-#     except Exception as e:
-#         await file.seek(0)
-#         return {
-#             "is_valid": False,
-#             "message": "Could not process image",
-#             "error": "processing_error",
-#             "details": str(e)
-#         }
-
-# @router.post("/verify-pet")
-# async def verify_pet_image_endpoint(file: UploadFile = File(...)):
-#     try:
-#         # Verify the file is actually an image first
-#         if not file.content_type.startswith('image/'):
-#             return {
-#                 "is_valid": False,
-#                 "message": "File is not a valid image",
-#                 "error": "invalid_file_type"
-#             }
-
-#         # Read the first few bytes to verify it's an image
-#         header = await file.read(10)
-#         await file.seek(0)
-#         if not header.startswith((b'\xff\xd8', b'\x89PNG\r\n\x1a\n')):  # JPEG/PNG magic numbers
-#             return {
-#                 "is_valid": False,
-#                 "message": "Invalid image file format",
-#                 "error": "invalid_image_format"
-#             }
-
-#         # Now try the pet verification
-#         verification = await verify_pet(file)
-#         await file.seek(0)  # Reset for potential reuse
-        
-#         return verification
-
-#     except HTTPException as he:
-#         await file.seek(0)
-#         if he.status_code == 503:
-#             return {
-#                 "is_valid": False,
-#                 "message": he.detail.get("message", "ML feature unavailable"),
-#                 "error": he.detail.get("type", "torch_not_available")
-#             }
-#         raise he  # re-raise other HTTPExceptions
-
-#     except Exception as e:
-#         await file.seek(0)
-#         return {
-#             "is_valid": False,
-#             "message": "Could not process image",
-#             "error": "processing_error",
-#             "details": str(e)
-#         }
-
-
-@router.post("/verify-pet")
+@router.post("/verify-pet-image")
 async def verify_pet_image_endpoint(file: UploadFile = File(...)):
     try:
-        # Verify file is an image
+        # Verify the file is actually an image first
         if not file.content_type.startswith('image/'):
             return {
                 "is_valid": False,
@@ -235,30 +152,21 @@ async def verify_pet_image_endpoint(file: UploadFile = File(...)):
                 "error": "invalid_file_type"
             }
 
-        # Verify image format
+        # Read the first few bytes to verify it's an image
         header = await file.read(10)
         await file.seek(0)
-        if not header.startswith((b'\xff\xd8', b'\x89PNG\r\n\x1a\n')):
+        if not header.startswith((b'\xff\xd8', b'\x89PNG\r\n\x1a\n')):  # JPEG/PNG magic numbers
             return {
                 "is_valid": False,
                 "message": "Invalid image file format",
                 "error": "invalid_image_format"
             }
 
-        # Process with pet detector
-        verification = await verify_pet(file)
-        await file.seek(0)
+        # Now try the pet verification
+        verification = await verify_pet_image(file)
+        await file.seek(0)  # Reset for potential reuse
+        
         return verification
-
-    except HTTPException as he:
-        await file.seek(0)
-        if he.status_code == 503:
-            return {
-                "is_valid": False,
-                "message": "Pet detection service unavailable",
-                "error": "service_unavailable"
-            }
-        raise he
 
     except Exception as e:
         await file.seek(0)
@@ -791,7 +699,7 @@ async def update_pet_image_endpoint(
             )
 
         # Now try the pet verification
-        verification = await verify_pet(file)
+        verification = await verify_pet_image(file)
         await file.seek(0)  # Reset for potential reuse
         
         if not verification.get('is_valid'):
