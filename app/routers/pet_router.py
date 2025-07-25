@@ -177,10 +177,57 @@ async def create_pet(pet_data: dict, db: Session = Depends(get_db)):
 #             "details": str(e)
 #         }
 
+# @router.post("/verify-pet")
+# async def verify_pet_image_endpoint(file: UploadFile = File(...)):
+#     try:
+#         # Verify the file is actually an image first
+#         if not file.content_type.startswith('image/'):
+#             return {
+#                 "is_valid": False,
+#                 "message": "File is not a valid image",
+#                 "error": "invalid_file_type"
+#             }
+
+#         # Read the first few bytes to verify it's an image
+#         header = await file.read(10)
+#         await file.seek(0)
+#         if not header.startswith((b'\xff\xd8', b'\x89PNG\r\n\x1a\n')):  # JPEG/PNG magic numbers
+#             return {
+#                 "is_valid": False,
+#                 "message": "Invalid image file format",
+#                 "error": "invalid_image_format"
+#             }
+
+#         # Now try the pet verification
+#         verification = await verify_pet(file)
+#         await file.seek(0)  # Reset for potential reuse
+        
+#         return verification
+
+#     except HTTPException as he:
+#         await file.seek(0)
+#         if he.status_code == 503:
+#             return {
+#                 "is_valid": False,
+#                 "message": he.detail.get("message", "ML feature unavailable"),
+#                 "error": he.detail.get("type", "torch_not_available")
+#             }
+#         raise he  # re-raise other HTTPExceptions
+
+#     except Exception as e:
+#         await file.seek(0)
+#         return {
+#             "is_valid": False,
+#             "message": "Could not process image",
+#             "error": "processing_error",
+#             "details": str(e)
+#         }
+
+
 @router.post("/verify-pet")
 async def verify_pet_image_endpoint(file: UploadFile = File(...)):
     try:
-        # Verify the file is actually an image first
+        # Verify file is an image
         if not file.content_type.startswith('image/'):
             return {
                 "is_valid": False,
@@ -188,20 +235,19 @@ async def verify_pet_image_endpoint(file: UploadFile = File(...)):
                 "error": "invalid_file_type"
             }
 
-        # Read the first few bytes to verify it's an image
+        # Verify image format
         header = await file.read(10)
         await file.seek(0)
-        if not header.startswith((b'\xff\xd8', b'\x89PNG\r\n\x1a\n')):  # JPEG/PNG magic numbers
+        if not header.startswith((b'\xff\xd8', b'\x89PNG\r\n\x1a\n')):
             return {
                 "is_valid": False,
                 "message": "Invalid image file format",
                 "error": "invalid_image_format"
             }
 
-        # Now try the pet verification
+        # Process with pet detector
         verification = await verify_pet(file)
-        await file.seek(0)  # Reset for potential reuse
-        
+        await file.seek(0)
         return verification
 
     except HTTPException as he:
@@ -209,10 +255,10 @@ async def verify_pet_image_endpoint(file: UploadFile = File(...)):
         if he.status_code == 503:
             return {
                 "is_valid": False,
-                "message": he.detail.get("message", "ML feature unavailable"),
-                "error": he.detail.get("type", "torch_not_available")
+                "message": "Pet detection service unavailable",
+                "error": "service_unavailable"
             }
-        raise he  # re-raise other HTTPExceptions
+        raise he
 
     except Exception as e:
         await file.seek(0)
