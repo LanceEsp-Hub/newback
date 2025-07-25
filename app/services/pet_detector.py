@@ -299,55 +299,33 @@
 #                 "details": str(e)
 #             }
 #         )
-
-
 import io
-import os
 import logging
-from pathlib import Path
-from fastapi import FastAPI, UploadFile, HTTPException
 from PIL import Image
 import torch
+from fastapi import HTTPException
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-app = FastAPI()
-
-# Model paths (adjust according to your structure)
-MODEL_PATH = Path("MAINBACKEND/yolov5s.pt")
 
 # Initialize model
 model = None
 
-@app.on_event("startup")
 def load_model():
     global model
     try:
-        logger.info("🚀 Loading local YOLOv5 model...")
+        logger.info("Loading YOLOv5 model...")
         
-        if not MODEL_PATH.exists():
-            raise FileNotFoundError(f"Model file not found at {MODEL_PATH}")
-            
         # Load local model
-        model = torch.load(MODEL_PATH, map_location='cpu')
-        model.eval()
+        model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)
+        model.to('cpu').eval()
         
-        # Test with dummy image
-        test_img = Image.new('RGB', (640, 640), (255, 255, 255))
-        with torch.no_grad():
-            model(test_img)
-            
-        logger.info("✅ Model loaded successfully from local file!")
+        logger.info("Model loaded successfully")
         
     except Exception as e:
-        logger.error(f"❌ Model loading failed: {str(e)}")
-        model = None
+        logger.error(f"Model loading failed: {str(e)}")
         raise RuntimeError(f"Could not load model: {str(e)}")
 
-@app.post("/verify-pet")
-async def verify_pet(file: UploadFile):
+async def verify_pet(file):
     if model is None:
         raise HTTPException(
             status_code=503,
@@ -359,6 +337,7 @@ async def verify_pet(file: UploadFile):
         )
 
     try:
+        # Read and verify image
         contents = await file.read()
         image = Image.open(io.BytesIO(contents))
         
@@ -366,23 +345,23 @@ async def verify_pet(file: UploadFile):
         if image.mode != 'RGB':
             image = image.convert('RGB')
         
-        # Resize if too large
-        if max(image.size) > 1280:
-            image.thumbnail((1280, 1280))
-        
-        # Run inference
-        with torch.no_grad():
-            results = model(image, size=640)  # Standard YOLOv5 inference size
-            
+        # Run detection
+        results = model(image)
         detections = results.pandas().xyxy[0]
         
-        # Check for pets (cat=15, dog=16)
-        has_pet = any((detections['class'].isin([15, 16])) & (detections['confidence'] > 0.3)
+        # Check for cats (class 15) and dogs (class 16)
+        pet_detections = detections[
+            (detections['class'].isin([15, 16])) & 
+            (detections['confidence'] > 0.3)
+        ]
+        
+        has_pet = not pet_detections.empty
+        detected_objects = pet_detections['name'].unique().tolist()
         
         return {
-            "is_valid": bool(has_pet),
-            "detected_objects": detections[detections['confidence'] > 0.3]['name'].unique().tolist(),
-            "confidence": float(detections['confidence'].max()) if not detections.empty else 0.0
+            "is_valid": has_pet,
+            "detected_objects": detected_objects,
+            "confidence": float(pet_detections['confidence'].max()) if has_pet else 0.0
         }
 
     except Exception as e:
