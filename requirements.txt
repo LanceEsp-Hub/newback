@@ -160,7 +160,8 @@ fastapi-mail==1.4.1
 # Image processing
 pillow==10.1.0
 torch==2.0.1
-torchvision==0.15.2  # Matches torch 2.0.1
+# torchvision==0.15.2  # Matches torch 2.0.1
+torch==1.13.1
 ultralytics==8.0.196  # Latest version compatible with torch 2.0.x
 
 
