@@ -141,6 +141,590 @@ async def create_pet(pet_data: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=f"Failed to create pet: {str(e)}")
 
 
+
+
+
+
+
+
+
+
+
+@router.post("/register-device", status_code=201)
+async def register_device(device_data: dict, db: Session = Depends(get_db)):
+    """
+    Register a new pet tracking device
+    Expects: {"unique_code": "string"}
+    """
+    try:
+        # Validate input
+        if not device_data.get("unique_code"):
+            raise HTTPException(
+                status_code=422,
+                detail={"message": "unique_code is required"}
+            )
+
+        unique_code = device_data["unique_code"]  # Extract the string value
+
+        # Check for existing device - including status check
+        existing = db.query(models.Device).filter(
+            models.Device.unique_code == unique_code,
+            models.Device.status != "removed"  # Only consider non-removed devices
+        ).first()
+        
+        if existing:
+            raise HTTPException(
+                status_code=400,
+                detail={"message": "Device already registered"}
+            )
+        
+        # Create new device with status
+        db_device = models.Device(
+            unique_code=unique_code,
+            is_active=False,
+            is_online=False,
+            status="working"  # Explicitly set status (default would work too)
+        )
+        
+        db.add(db_device)
+        db.commit()
+        db.refresh(db_device)
+        
+        return {
+            "status": "success",
+            "message": "Device registered",
+            "data": {
+                "device_id": db_device.device_id,
+                "unique_code": db_device.unique_code,
+                "status": db_device.status  # Include status in response
+            }
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail={"message": f"Registration failed: {str(e)}"}
+        )
+    
+
+@router.patch("/update-device-status/{device_id}", status_code=200)
+async def update_device_status(
+    device_id: int,
+    status_data: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Update device status
+    Expects: {"status": "working" | "removed"}
+    """
+    try:
+        if not status_data.get("status") or status_data["status"] not in ["working", "removed"]:
+            raise HTTPException(
+                status_code=422,
+                detail={"message": "Valid status (working/removed) is required"}
+            )
+
+        device = db.query(models.Device).filter(
+            models.Device.device_id == device_id
+        ).first()
+
+        if not device:
+            raise HTTPException(
+                status_code=404,
+                detail={"message": "Device not found"}
+            )
+
+        device.status = status_data["status"]
+        db.commit()
+        
+        return {
+            "status": "success",
+            "message": "Device status updated",
+            "data": {
+                "device_id": device.device_id,
+                "new_status": device.status
+            }
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail={"message": f"Status update failed: {str(e)}"}
+        )
+    
+@router.get("/devices")
+async def get_all_devices(
+    db: Session = Depends(get_db),
+    status: str = None,
+    skip: int = 0,
+    limit: int = 100
+):
+    """
+    Get all registered devices
+    Optional parameters:
+    - status: filter by status (working/removed)
+    - skip: pagination offset
+    - limit: max number of results
+    """
+    try:
+        query = db.query(models.Device)
+        
+        # Apply status filter if provided
+        if status in ["working", "removed"]:
+            query = query.filter(models.Device.status == status)
+        
+        devices = query.offset(skip).limit(limit).all()
+        
+        return {
+            "status": "success",
+            "data": [
+                {
+                    "device_id": device.device_id,
+                    "unique_code": device.unique_code,
+                    "is_active": device.is_active,
+                    "is_online": device.is_online,
+                    "status": device.status
+                }
+                for device in devices
+            ]
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail={"message": f"Failed to fetch devices: {str(e)}"}
+        )
+    
+@router.get("/device-locations/{device_id}", status_code=200)
+async def get_device_locations(
+    device_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get location history for a specific device
+    """
+    try:
+        # Verify device exists
+        device = db.query(models.Device).filter(
+            models.Device.device_id == device_id
+        ).first()
+
+        if not device:
+            raise HTTPException(
+                status_code=404,
+                detail={"message": "Device not found"}
+            )
+
+        # Get locations
+        locations = db.query(models.Location).filter(
+            models.Location.device_id == device_id
+        ).order_by(models.Location.timestamp.desc()).all()
+
+        return {
+            "status": "success",
+            "data": [
+                {
+                    "location_id": loc.location_id,
+                    "latitude": loc.latitude,
+                    "longitude": loc.longitude,
+                    "timestamp": loc.timestamp.isoformat()
+                }
+                for loc in locations
+            ]
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail={"message": f"Failed to fetch locations: {str(e)}"}
+        )
+
+
+@router.post("/pair-device", status_code=200)
+async def pair_device_with_pet(
+    pair_data: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Pair an existing device with a pet
+    Expects: {"unique_code": "string", "pet_id": int, "user_id": int}
+    """
+    try:
+        # Validate input
+        if not all(key in pair_data for key in ["unique_code", "pet_id", "user_id"]):
+            raise HTTPException(
+                status_code=422,
+                detail={"message": "unique_code, pet_id, and user_id are required"}
+            )
+
+        unique_code = pair_data["unique_code"]
+        pet_id = pair_data["pet_id"]
+        user_id = pair_data["user_id"]
+
+        # Check if device exists in xxdevice_db table
+        device = db.query(models.Device).filter(
+            models.Device.unique_code == unique_code
+        ).first()
+        
+        if not device:
+            raise HTTPException(
+                status_code=404,
+                detail={"message": "Device with this unique code does not exist"}
+            )
+        
+        # Check if device status is not 'removed'
+        if device.status == "removed":
+            raise HTTPException(
+                status_code=400,
+                detail={"message": "Device is not available for pairing"}
+            )
+        
+        # Check if device is already paired with another pet
+        if device.pet_id is not None and device.pet_id != pet_id:
+            raise HTTPException(
+                status_code=400,
+                detail={"message": "Device is already paired with another pet"}
+            )
+        
+        # Verify that the pet exists and belongs to the user
+        pet = db.query(models.Pet).filter(
+            models.Pet.id == pet_id,
+            models.Pet.user_id == user_id
+        ).first()
+        
+        if not pet:
+            raise HTTPException(
+                status_code=404,
+                detail={"message": "Pet not found or does not belong to this user"}
+            )
+        
+        # Update device with pet_id, user_id, and set is_active to True
+        device.pet_id = pet_id
+        device.user_id = user_id
+        device.is_active = True
+        device.paired_at = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(device)
+        
+        return {
+            "status": "success",
+            "message": f"Device successfully paired with {pet.name}",
+            "data": {
+                "device_id": device.device_id,
+                "unique_code": device.unique_code,
+                "pet_id": device.pet_id,
+                "user_id": device.user_id,
+                "is_active": device.is_active,
+                "paired_at": device.paired_at.isoformat() if device.paired_at else None
+            }
+        }
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail={"message": f"Pairing failed: {str(e)}"}
+        )
+
+@router.patch("/update-pair-device", status_code=200)
+async def update_pair_device_with_pet(
+    pair_data: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Update device pairing with a pet
+    Expects: {"unique_code": "string", "pet_id": int, "user_id": int}
+    """
+    try:
+        # Validate input
+        if not all(key in pair_data for key in ["unique_code", "pet_id", "user_id"]):
+            raise HTTPException(
+                status_code=422,
+                detail={"message": "unique_code, pet_id, and user_id are required"}
+            )
+
+        unique_code = pair_data["unique_code"]
+        pet_id = pair_data["pet_id"]
+        user_id = pair_data["user_id"]
+
+        # Find the current device paired with this pet
+        current_device = db.query(models.Device).filter(
+            models.Device.pet_id == pet_id
+        ).first()
+
+        # Check if new device exists
+        new_device = db.query(models.Device).filter(
+            models.Device.unique_code == unique_code
+        ).first()
+        
+        if not new_device:
+            raise HTTPException(
+                status_code=404,
+                detail={"message": "Device with this unique code does not exist"}
+            )
+        
+        # Check if new device status is not 'removed'
+        if new_device.status == "removed":
+            raise HTTPException(
+                status_code=400,
+                detail={"message": "Device is not available for pairing"}
+            )
+        
+        # Check if new device is already paired with another pet
+        if new_device.pet_id is not None and new_device.pet_id != pet_id:
+            raise HTTPException(
+                status_code=400,
+                detail={"message": "Device is already paired with another pet"}
+            )
+        
+        # Verify that the pet exists and belongs to the user
+        pet = db.query(models.Pet).filter(
+            models.Pet.id == pet_id,
+            models.Pet.user_id == user_id
+        ).first()
+        
+        if not pet:
+            raise HTTPException(
+                status_code=404,
+                detail={"message": "Pet not found or does not belong to this user"}
+            )
+        
+        # If there's a current device, unpair it
+        if current_device and current_device.device_id != new_device.device_id:
+            current_device.pet_id = None
+            current_device.user_id = None
+            current_device.is_active = False
+            current_device.paired_at = None
+        
+        # Update new device with pet_id, user_id, and set is_active to True
+        new_device.pet_id = pet_id
+        new_device.user_id = user_id
+        new_device.is_active = True
+        new_device.paired_at = datetime.utcnow()
+        
+        db.commit()
+        db.refresh(new_device)
+        
+        return {
+            "status": "success",
+            "message": f"Device successfully updated for {pet.name}",
+            "data": {
+                "device_id": new_device.device_id,
+                "unique_code": new_device.unique_code,
+                "pet_id": new_device.pet_id,
+                "user_id": new_device.user_id,
+                "is_active": new_device.is_active,
+                "paired_at": new_device.paired_at.isoformat() if new_device.paired_at else None
+            }
+        }
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail={"message": f"Update pairing failed: {str(e)}"}
+        )
+
+@router.get("/{pet_id}/device-info", status_code=200)
+async def get_pet_device_info(
+    pet_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get device information for a specific pet
+    """
+    try:
+        # Find device paired with this pet
+        device = db.query(models.Device).filter(
+            models.Device.pet_id == pet_id
+        ).first()
+        
+        if not device:
+            raise HTTPException(
+                status_code=404,
+                detail={"message": "No device paired with this pet"}
+            )
+        
+        return {
+            "status": "success",
+            "data": {
+                "device_id": device.device_id,
+                "unique_code": device.unique_code,
+                "is_active": device.is_active,
+                "is_online": device.is_online,
+                "status": device.status,
+                "paired_at": device.paired_at.isoformat() if device.paired_at else None
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"message": f"Failed to fetch device info: {str(e)}"}
+        )
+
+@router.get("/{pet_id}/current-location", status_code=200)
+async def get_pet_current_location(
+    pet_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get current location of a pet using its paired device
+    """
+    try:
+        # Find device paired with this pet
+        device = db.query(models.Device).filter(
+            models.Device.pet_id == pet_id
+        ).first()
+        
+        if not device:
+            raise HTTPException(
+                status_code=404,
+                detail={"message": "No device paired with this pet"}
+            )
+        
+        # Get the most recent location from xxlocation_db
+        latest_location = db.query(models.Location).filter(
+            models.Location.device_id == device.device_id
+        ).order_by(models.Location.timestamp.desc()).first()
+        
+        if not latest_location:
+            raise HTTPException(
+                status_code=404,
+                detail={"message": "No location data available for this pet"}
+            )
+        
+        return {
+            "status": "success",
+            "data": {
+                "location_id": latest_location.location_id,
+                "latitude": latest_location.latitude,
+                "longitude": latest_location.longitude,
+                "timestamp": latest_location.timestamp.isoformat(),
+                "device_id": device.device_id,
+                "unique_code": device.unique_code
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"message": f"Failed to fetch current location: {str(e)}"}
+        )
+
+
+
+@router.patch("/{pet_id}/device-activation", status_code=200)
+async def toggle_device_activation(
+    pet_id: int,
+    activation_data: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Manually toggle device activation for Safe at Home pets
+    Expects: {"is_active": true/false}
+    """
+    try:
+        # Validate input
+        if "is_active" not in activation_data or not isinstance(activation_data["is_active"], bool):
+            raise HTTPException(
+                status_code=422,
+                detail={"message": "is_active boolean value is required"}
+            )
+
+        is_active = activation_data["is_active"]
+
+        # Find the pet
+        pet = db.query(models.Pet).filter(models.Pet.id == pet_id).first()
+        
+        if not pet:
+            raise HTTPException(
+                status_code=404,
+                detail={"message": "Pet not found"}
+            )
+
+        # Check if pet status allows manual device control
+        if pet.status not in ["Safe at Home"]:
+            raise HTTPException(
+                status_code=400,
+                detail={"message": f"Device activation can only be controlled for 'Safe at Home' pets. Current status: {pet.status}"}
+            )
+
+        # Find paired device
+        device = db.query(models.Device).filter(
+            models.Device.pet_id == pet_id
+        ).first()
+        
+        if not device:
+            raise HTTPException(
+                status_code=404,
+                detail={"message": "No device paired with this pet"}
+            )
+        
+        # Update device activation
+        old_status = device.is_active
+        device.is_active = is_active
+        
+        db.commit()
+        db.refresh(device)
+        
+        return {
+            "status": "success",
+            "message": f"Device {'activated' if is_active else 'deactivated'} successfully",
+            "data": {
+                "pet_id": pet.id,
+                "pet_name": pet.name,
+                "pet_status": pet.status,
+                "device_id": device.device_id,
+                "unique_code": device.unique_code,
+                "old_active_status": old_status,
+                "new_active_status": device.is_active
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail={"message": f"Device activation toggle failed: {str(e)}"}
+        )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 @router.post("/verify-pet-image")
 async def verify_pet_image_endpoint(file: UploadFile = File(...)):
     try:
