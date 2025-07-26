@@ -33,7 +33,7 @@ conf = ConnectionConfig(
 async def send_verification_email(email: str, token: str):
     """Send email verification link with proper frontend redirect"""
     # Get URLs from environment with fallback defaults
-    backend_url = os.getenv('BACKEND_URL', 'https://newback-production-a0cc.up.railway.app/')
+    backend_url = os.getenv('BACKEND_URL', 'https://newback-production-a0cc.up.railway.app')
     frontend_login_url = os.getenv('FRONTEND_LOGIN_URL', 'https://smart-pet-frontend.vercel.app/login')
     
     # Construct verification URL that points to your API endpoint
