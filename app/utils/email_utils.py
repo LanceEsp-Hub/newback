@@ -143,7 +143,7 @@ async def send_verification_email(email: str, token: str):
 
 
 async def send_password_reset_email(email: str, reset_token: str):
-    reset_url = f"https://newback-production-a0cc.up.railway.app/reset-password?token={reset_token}"
+    reset_url = f"https://smart-pet-eta.vercel.app/reset-password?token={reset_token}"
 
     message = MessageSchema(
         subject="Password Reset Request",
