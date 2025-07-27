@@ -1,6 +1,9 @@
 # Pet router - Add your pet-related endpoints here
 # # backend/app/routers/pet_router.py
 # backend/app/routers/pet_router.py
+# Pet router - Add your pet-related endpoints here
+# # backend/app/routers/pet_router.py
+# backend/app/routers/pet_router.py
 from fastapi import APIRouter, HTTPException, Depends, status, Body, UploadFile, Query, File, Form
 from sqlalchemy.orm import Session
 from app.database.database import get_db
@@ -88,6 +91,7 @@ async def create_pet(pet_data: dict, db: Session = Depends(get_db)):
     try:
         pet_date = datetime.strptime(pet_data["date"], "%Y-%m-%dT%H:%M")
         
+        # Create the pet first to get the ID
         db_pet = models.Pet(
             name=pet_data["name"],
             type=pet_data.get("type", "Dog"),
@@ -96,7 +100,7 @@ async def create_pet(pet_data: dict, db: Session = Depends(get_db)):
             date=pet_date,
             address=pet_data.get("address", ""),
             status=pet_data.get("status", "Safe at Home"),
-            image=pet_data.get("image"),
+            image=None,  # Will be updated after we get the pet ID
             user_id=pet_data["user_id"],
             latitude=pet_data.get("latitude"),
             longitude=pet_data.get("longitude")
@@ -105,6 +109,14 @@ async def create_pet(pet_data: dict, db: Session = Depends(get_db)):
         db.add(db_pet)
         db.commit()
         db.refresh(db_pet)
+
+        # Now update the image path with the pet ID
+        if pet_data.get("image"):
+            # Construct the proper file path: pet_id/main.jpg
+            image_path = f"{db_pet.id}/main.jpg"
+            db_pet.image = image_path
+            db.commit()
+            db.refresh(db_pet)
 
         # Optional: Notify the pet owner ↓
         create_notification(
@@ -746,58 +758,6 @@ async def verify_pet_image_endpoint(file: UploadFile = File(...)):
         }
 
 
-# @router.post("/upload-image")
-# async def upload_pet_image(
-#     file: UploadFile = File(...),
-#     db: Session = Depends(get_db)
-# ):
-#     try:
-#         # ✅ Validate file type
-#         if not file.content_type.startswith('image/'):
-#             raise HTTPException(status_code=400, detail="Only images are allowed")
-
-#         # ✅ Get latest pet
-#         latest_pet = db.query(models.Pet).order_by(models.Pet.id.desc()).first()
-#         if not latest_pet:
-#             raise HTTPException(status_code=404, detail="No pet found")
-
-#         # ✅ Create unique filename and subfolder path
-#         ext = Path(file.filename).suffix.lower()
-#         filename = f"pet_{uuid.uuid4().hex}{ext}"
-#         pet_id = latest_pet.id
-#         path_in_bucket = f"{pet_id}/{filename}"  # This creates the subfolder in Supabase
-
-#         # ✅ Read file contents
-#         content = await file.read()
-
-#         # ✅ Upload to Supabase
-#         res = supabase.storage.from_(SUPABASE_BUCKET).upload(
-#             path=path_in_bucket,
-#             file=content,
-#             file_options={"content-type": file.content_type, "x-upsert": "true"}
-#         )
-
-#         # ✅ Handle errors
-#         if res.get("error"):
-#             raise HTTPException(status_code=500, detail=res["error"]["message"])
-
-#         # ✅ Update DB record
-#         latest_pet.image = path_in_bucket
-#         db.commit()
-
-#         # ✅ Return public URL
-#         public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{path_in_bucket}"
-
-#         return {
-#             "filename": filename,
-#             "file_path": path_in_bucket,
-#             "url": public_url
-#         }
-
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=str(e))
-
 @router.post("/upload-image")
 async def upload_pet_image(
     file: UploadFile = File(...),
@@ -831,8 +791,8 @@ async def upload_pet_image(
         if res.get("error"):
             raise HTTPException(status_code=500, detail=res["error"]["message"])
 
-        # ✅ Update DB record
-        latest_pet.image = path_in_bucket
+        # ✅ Update DB record with the full path
+        latest_pet.image = path_in_bucket  # This will be "1/main.jpg"
         db.commit()
 
         # ✅ Public URL
@@ -840,7 +800,7 @@ async def upload_pet_image(
 
         return {
             "filename": filename,
-            "file_path": path_in_bucket,
+            "file_path": path_in_bucket,  # Returns "1/main.jpg"
             "url": public_url
         }
 
@@ -869,7 +829,7 @@ async def get_pets(user_id: int, db: Session = Depends(get_db)):
                     "date": pet.date.isoformat(),  # Convert datetime to string
                     "address": pet.address,
                     "status": pet.status,
-                    "image": pet.image,
+                    "image": pet.image,  # This will now be "1/main.jpg" format
                 }
                 for pet in pets
             ]
@@ -911,7 +871,7 @@ async def get_pet(pet_id: int, db: Session = Depends(get_db)):
             "date": pet.date.isoformat() if pet.date else None,
             "address": pet.address,
             "status": pet.status,
-            "image": pet.image,  # Keep filename for backend
+            "image": pet.image,  # Keep filename for backend (now "1/main.jpg")
             "image_url": image_url,  # Add URL for frontend
             "additional_images": pet.additional_images or [],
             "additional_image_urls": additional_image_urls,  # Add URLs for frontend
@@ -960,14 +920,15 @@ async def delete_pet(
         if pet.user_id != user_id:
             raise HTTPException(status_code=403, detail="Not authorized to delete this pet")
         
-        # First delete the associated image file if it exists
-        if pet.image:
-            try:
-                image_path = os.path.join(UPLOAD_DIR, pet.image)
-                if os.path.exists(image_path):
-                    os.remove(image_path)
-            except Exception as e:
-                print(f"Warning: Failed to delete image file: {str(e)}")
+        # Delete images from Supabase if they exist
+        try:
+            if pet.image:
+                supabase.storage.from_(SUPABASE_BUCKET).remove([pet.image])
+            
+            if pet.additional_images:
+                supabase.storage.from_(SUPABASE_BUCKET).remove(pet.additional_images)
+        except Exception as e:
+            print(f"Warning: Failed to delete images from Supabase: {str(e)}")
         
         db.delete(pet)
         db.commit()
@@ -1172,9 +1133,9 @@ async def update_pet_image_endpoint(
         if not pet:
             raise HTTPException(status_code=404, detail="Pet not found")
 
-        # Generate filename
-        ext = Path(file.filename).suffix.lower()
-        filename = f"pet_{pet_id}_main_{uuid.uuid4().hex}{ext}"
+        # Generate filename with proper path structure
+        filename = "main.jpg"
+        path_in_bucket = f"{pet_id}/{filename}"  # This creates "1/main.jpg"
         content = await file.read()
 
         # Delete old image if exists
@@ -1186,21 +1147,25 @@ async def update_pet_image_endpoint(
 
         # Upload new image to Supabase
         res = supabase.storage.from_(SUPABASE_BUCKET).upload(
-            path=filename,
+            path=path_in_bucket,
             file=content,
-            file_options={"content-type": file.content_type}
+            file_options={"content-type": file.content_type, "x-upsert": "true"}
         )
 
-        # Update pet record
-        pet.image = filename
+        # Handle errors
+        if res.get("error"):
+            raise HTTPException(status_code=500, detail=res["error"]["message"])
+
+        # Update pet record with the full path
+        pet.image = path_in_bucket  # This will be "1/main.jpg"
         db.commit()
 
-        public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{filename}"
+        public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{path_in_bucket}"
 
         return {
             "success": True,
             "filename": filename,
-            "file_path": f"/uploads/pet_images/{filename}",
+            "file_path": path_in_bucket,  # Returns "1/main.jpg"
             "url": public_url
         }
 
@@ -1230,9 +1195,9 @@ async def add_additional_image(
         if image_type not in valid_types:
             raise HTTPException(status_code=400, detail="Invalid image type. Must be face, side, or fur")
 
-        # Generate filename
-        ext = Path(file.filename).suffix.lower()
-        filename = f"pet_{pet_id}_{image_type}_{uuid.uuid4().hex}{ext}"
+        # Generate filename with proper path structure
+        filename = f"{image_type}.jpg"
+        path_in_bucket = f"{pet_id}/{filename}"  # This creates "1/face.jpg", "1/side.jpg", etc.
         content = await file.read()
 
         # Initialize additional_images if None
@@ -1240,38 +1205,42 @@ async def add_additional_image(
             pet.additional_images = []
 
         # Check if this image type already exists and remove old one
-        old_filename = None
-        for i, img in enumerate(pet.additional_images):
-            if f"_{image_type}_" in img:
-                old_filename = pet.additional_images.pop(i)
+        old_path = None
+        for i, img_path in enumerate(pet.additional_images):
+            if img_path.endswith(f"/{filename}"):
+                old_path = pet.additional_images.pop(i)
                 break
 
         # Delete old image from Supabase if exists
-        if old_filename:
+        if old_path:
             try:
-                supabase.storage.from_(SUPABASE_BUCKET).remove([old_filename])
+                supabase.storage.from_(SUPABASE_BUCKET).remove([old_path])
             except:
                 pass
 
         # Upload new image to Supabase
         res = supabase.storage.from_(SUPABASE_BUCKET).upload(
-            path=filename,
+            path=path_in_bucket,
             file=content,
-            file_options={"content-type": file.content_type}
+            file_options={"content-type": file.content_type, "x-upsert": "true"}
         )
 
-        # Update the pet's additional_images array
-        pet.additional_images.append(filename)
+        # Handle errors
+        if res.get("error"):
+            raise HTTPException(status_code=500, detail=res["error"]["message"])
+
+        # Update the pet's additional_images array with the full path
+        pet.additional_images.append(path_in_bucket)  # This will be "1/face.jpg"
         flag_modified(pet, "additional_images")
         db.commit()
         db.refresh(pet)
 
-        public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{filename}"
+        public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{path_in_bucket}"
 
         return {
             "success": True,
             "filename": filename,
-            "file_path": f"/uploads/pet_images/{filename}",
+            "file_path": path_in_bucket,  # Returns "1/face.jpg"
             "url": public_url,
             "all_images": pet.additional_images
         }
@@ -1297,16 +1266,18 @@ async def remove_additional_image(
         if not pet.additional_images or index >= len(pet.additional_images):
             raise HTTPException(status_code=400, detail="Invalid image index")
 
-        # Get the filename to remove
-        filename = pet.additional_images[index]
-        file_path = Path(UPLOAD_DIR) / str(pet_id) / filename
+        # Get the path to remove
+        image_path = pet.additional_images[index]
 
-        # Delete the file if it exists
-        if file_path.exists():
-            file_path.unlink()
+        # Delete from Supabase
+        try:
+            supabase.storage.from_(SUPABASE_BUCKET).remove([image_path])
+        except Exception as e:
+            print(f"Warning: Failed to delete from Supabase: {str(e)}")
 
         # Remove from the array
         pet.additional_images.pop(index)
+        flag_modified(pet, "additional_images")
         db.commit()
 
         return {
@@ -1333,29 +1304,23 @@ async def clear_additional_images(
         if not pet:
             raise HTTPException(status_code=404, detail="Pet not found")
 
-        # Clear additional images from filesystem
-        pet_dir = Path(UPLOAD_DIR) / str(pet_id)
-        if pet_dir.exists():
-            # Only delete face.jpg, side.jpg, fur.jpg
-            for filename in ["face.jpg", "side.jpg", "fur.jpg"]:
-                file_path = pet_dir / filename
-                if file_path.exists():
-                    try:
-                        file_path.unlink()
-                    except Exception as e:
-                        print(f"Warning: Failed to delete {file_path}: {str(e)}")
+        # Delete additional images from Supabase
+        if pet.additional_images:
+            try:
+                supabase.storage.from_(SUPABASE_BUCKET).remove(pet.additional_images)
+            except Exception as e:
+                print(f"Warning: Failed to delete images from Supabase: {str(e)}")
 
         # Clear additional_images array in database but keep main image
         if pet.additional_images:
             pet.additional_images = []
-            from sqlalchemy.orm.attributes import flag_modified
             flag_modified(pet, "additional_images")
             db.commit()
 
         return {
             "success": True,
             "message": "Additional images cleared successfully",
-            "main_image": pet.image  # Return the preserved main image
+            "main_image": pet.image  # Return the preserved main image path
         }
 
     except Exception as e:
@@ -1435,18 +1400,14 @@ def get_pet_flyer_data(pet_id: int, db: Session = Depends(get_db)):
         if not owner:
             raise HTTPException(status_code=404, detail="Owner not found")
         
-        # Handle image path construction
-        image_path = None
-        if pet.image:
-            # Extract just the filename if full path is stored
-            image_name = pet.image.split('/')[-1] if '/' in pet.image else pet.image
-            image_path = f"{pet_id}/{image_name}"
+        # Handle image path - pet.image is now already in "1/main.jpg" format
+        image_path = pet.image if pet.image else None
         
         return {
             "success": True,
             "data": {
                 "pet": {
-                    "id": pet.id,  # Include pet ID in response
+                    "id": pet.id,
                     "name": pet.name,
                     "type": pet.type,
                     "breed": pet.breed if hasattr(pet, 'breed') else "Unknown",
@@ -1454,8 +1415,8 @@ def get_pet_flyer_data(pet_id: int, db: Session = Depends(get_db)):
                     "description": pet.description,
                     "date_lost": pet.date.strftime("%Y-%m-%d") if pet.date else "Unknown",
                     "last_seen": pet.address,
-                    "image": image_path,  # Now returns "pet_id/filename.jpg"
-                    "image_url": f"/uploads/pet_images/{pet_id}/{pet.image.split('/')[-1]}" if pet.image else None
+                    "image": image_path,  # Now returns "1/main.jpg" directly
+                    "image_url": f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{image_path}" if image_path else None
                 },
                 "owner": {
                     "name": getattr(owner, 'full_name', getattr(owner, 'name', 'Unknown')),
@@ -1552,11 +1513,17 @@ async def find_similar_pets(
                     )
                     if similarity >= threshold:
                         user = db.query(models.User).filter(models.User.id == target_pet.user_id).first()
+                        
+                        # Generate image URL for the match
+                        image_url = None
+                        if target_pet.image:
+                            image_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{target_pet.image}"
+                        
                         matches.append({
                             "pet_id": target_pet.id,
                             "name": target_pet.name,
                             "score": float(similarity),
-                            "image_url": f"/uploads/pet_images/{target_pet.id}/main.jpg",
+                            "image_url": image_url,  # Now uses Supabase URL
                             "distance_km": float(distance_km) if distance_km else None,
                             "description": target_pet.description,
                             "date": target_pet.date.isoformat() if target_pet.date else None,
@@ -1722,7 +1689,7 @@ async def get_rehome_pets(
             "name": pet.name,
             "type": pet.type,
             "gender": pet.gender,
-            "image": pet.image,
+            "image": pet.image,  # This is now "1/main.jpg" format
             "location": pet.address,
             "status": pet.status,
             "additional_images": pet.additional_images,
@@ -1976,7 +1943,7 @@ async def get_user_adoptions(
                 "id": adoption.id,
                 "pet_id": adoption.pet_id,
                 "pet_name": adoption.pet.name,
-                "pet_image": adoption.pet.image,
+                "pet_image": adoption.pet.image,  # This is now "1/main.jpg" format
                 "pet_type": adoption.pet.type,
                 "owner_id": adoption.owner_id,
                 "owner_name": adoption.owner.name,
@@ -2110,6 +2077,7 @@ async def update_adoption_status(
             status_code=500,
             detail=f"Failed to update adoption status: {str(e)}"
         )
+
 
 
 
