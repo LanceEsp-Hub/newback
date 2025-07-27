@@ -1,6 +1,6 @@
 #backend\app\routers\user_router.py
 
-from fastapi import APIRouter, status, HTTPException, Depends, UploadFile, File, Query, BackgroundTasks, Form
+from fastapi import APIRouter, status, HTTPException, Depends, UploadFile, File, Query, BackgroundTasks, Form, Request
 from sqlalchemy.orm import Session
 from app.database.database import get_db
 from app.models import models
@@ -18,6 +18,7 @@ import httpx
 
 from pathlib import Path
 
+
 router = APIRouter(prefix="/api/user", tags=["users"])  # Changed tag to plural for consistency
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,8 @@ SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "profile-pictures")
 print("SUPABASE_URL:", SUPABASE_URL)
 print("SUPABASE_KEY:", SUPABASE_KEY[:5], "...")  # Only show part for safety
 
+# In-memory rate limiting (simple alternative)
+_request_counts = {}
 
 # Initialize Supabase client
 try:
@@ -790,32 +793,92 @@ async def change_user_password(
 #         raise HTTPException(status_code=400, detail=str(e))
 
 
-# Password Reset Endpoints
-@router.post("/{user_id}/request-password-reset")
-async def request_user_password_reset(
-    user_id: int,
-    background_tasks: BackgroundTasks,
+# # Password Reset Endpoints
+# @router.post("/{user_id}/request-password-reset")
+# async def request_user_password_reset(
+#     user_id: int,
+#     background_tasks: BackgroundTasks,
+#     db: Session = Depends(get_db)
+# ):
+#     # Find user
+#     user = db.query(User).filter(User.id == user_id).first()
+#     if not user:
+#         raise HTTPException(status_code=404, detail="User not found")
+
+#     # Generate and save hashed token + expiry
+#     raw_token = secrets.token_urlsafe(32)  # Raw token for email
+#     user.reset_token = pwd_context.hash(raw_token)  # Store hashed
+#     user.reset_token_expires_at = datetime.utcnow() + timedelta(hours=1)
+#     db.commit()
+
+#     # Send email (background)
+#     background_tasks.add_task(
+#         send_password_reset_email,
+#         email=user.email,
+#         reset_token=raw_token  # Send raw token
+#     )
+
+#     return {"message": "Password reset email sent"}
+
+
+def check_rate_limit(request: Request, limit: int = 5, window: int = 3600):
+    """Basic rate limiting using client IP."""
+    client_ip = request.client.host
+    now = datetime.utcnow().timestamp()
+    
+    # Clear old entries
+    _request_counts[client_ip] = [
+        t for t in _request_counts.get(client_ip, []) 
+        if now - t < window
+    ]
+    
+    # Check limit
+    if len(_request_counts.get(client_ip, [])) >= limit:
+        raise HTTPException(
+            status_code=429, 
+            detail="Too many requests. Try again later."
+        )
+    
+    # Record new request
+    _request_counts.setdefault(client_ip, []).append(now)
+
+@router.post("/request-password-reset")
+async def request_password_reset(
+    request: Request,
+    email: str = Form(...),
+    background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db)
 ):
-    # Find user
-    user = db.query(User).filter(User.id == user_id).first()
+    """Endpoint to request password reset with simple rate limiting."""
+    # Basic rate limiting (5 requests/hour per IP)
+    check_rate_limit(request)
+    
+    # Rest of your existing code...
+    user = db.query(User).filter(User.email == email).first()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="Email not found")
 
-    # Generate and save hashed token + expiry
-    raw_token = secrets.token_urlsafe(32)  # Raw token for email
-    user.reset_token = pwd_context.hash(raw_token)  # Store hashed
-    user.reset_token_expires_at = datetime.utcnow() + timedelta(hours=1)
-    db.commit()
+    try:
+        raw_token = secrets.token_urlsafe(32)
+        user.reset_token = pwd_context.hash(raw_token)
+        user.reset_token_expires_at = datetime.utcnow() + timedelta(hours=1)
+        db.commit()
 
-    # Send email (background)
-    background_tasks.add_task(
-        send_password_reset_email,
-        email=user.email,
-        reset_token=raw_token  # Send raw token
-    )
+        if background_tasks:
+            background_tasks.add_task(
+                send_password_reset_email,
+                email=user.email,
+                reset_token=raw_token
+            )
+        else:
+            await send_password_reset_email(user.email, raw_token)
 
-    return {"message": "Password reset email sent"}
+        return {"message": "Password reset email sent"}
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/reset-password")
 async def reset_password(
@@ -840,3 +903,7 @@ async def reset_password(
     db.commit()
 
     return {"message": "Password reset successfully"}
+
+
+
+
