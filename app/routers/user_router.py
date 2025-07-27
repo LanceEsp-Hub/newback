@@ -789,44 +789,47 @@ async def change_user_password(
 #         db.rollback()
 #         raise HTTPException(status_code=400, detail=str(e))
 
+
+# Password Reset Endpoints
 @router.post("/{user_id}/request-password-reset")
 async def request_user_password_reset(
     user_id: int,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
-    user = db.query(models.User).filter(models.User.id == user_id).first()
+    # Find user
+    user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Generate and save hashed token to DB (not memory)
-    raw_token = secrets.token_urlsafe(32)
+    # Generate and save hashed token + expiry
+    raw_token = secrets.token_urlsafe(32)  # Raw token for email
     user.reset_token = pwd_context.hash(raw_token)  # Store hashed
     user.reset_token_expires_at = datetime.utcnow() + timedelta(hours=1)
     db.commit()
 
-    # Send email with RAW token (frontend will submit it later)
+    # Send email (background)
     background_tasks.add_task(
         send_password_reset_email,
         email=user.email,
-        reset_token=raw_token  # Send raw token, but store hashed
+        reset_token=raw_token  # Send raw token
     )
 
     return {"message": "Password reset email sent"}
 
 @router.post("/reset-password")
 async def reset_password(
-    token: str = Form(...),  # Use Form, not Query!
+    token: str = Form(...),  # From frontend form
     new_password: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    # Find user with unexpired token
-    user = db.query(models.User).filter(
-        models.User.reset_token.isnot(None),
-        models.User.reset_token_expires_at > datetime.utcnow()
+    # Find user with valid token
+    user = db.query(User).filter(
+        User.reset_token.isnot(None),
+        User.reset_token_expires_at > datetime.utcnow()
     ).first()
 
-    # Verify token (compare hashed)
+    # Verify token
     if not user or not pwd_context.verify(token, user.reset_token):
         raise HTTPException(status_code=400, detail="Invalid or expired token")
 
