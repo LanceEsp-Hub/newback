@@ -858,26 +858,47 @@ async def request_password_reset(
     if not user:
         raise HTTPException(status_code=404, detail="Email not found")
 
+    # try:
+    #     raw_token = secrets.token_urlsafe(32)
+    #     user.reset_token = pwd_context.hash(raw_token)
+    #     user.reset_token_expires_at = datetime.utcnow() + timedelta(hours=1)
+    #     db.commit()
+
+    #     if background_tasks:
+    #         background_tasks.add_task(
+    #             send_password_reset_email,
+    #             email=user.email,
+    #             reset_token=raw_token
+    #         )
+    #     else:
+    #         await send_password_reset_email(user.email, raw_token)
+
+    #     return {"message": "Password reset email sent"}
+
+    # except Exception as e:
+    #     db.rollback()
+    #     raise HTTPException(status_code=500, detail=str(e))
+
     try:
+        # Transaction 1 - Database update
         raw_token = secrets.token_urlsafe(32)
         user.reset_token = pwd_context.hash(raw_token)
         user.reset_token_expires_at = datetime.utcnow() + timedelta(hours=1)
-        db.commit()
-
-        if background_tasks:
-            background_tasks.add_task(
-                send_password_reset_email,
-                email=user.email,
-                reset_token=raw_token
-            )
-        else:
-            await send_password_reset_email(user.email, raw_token)
-
+        db.commit()  # Final commit here
+    
+        # Transaction 2 - Email (can fail without affecting DB)
+        try:
+            if background_tasks:
+                background_tasks.add_task(...)
+            else:
+                await send_password_reset_email(...)
+        except Exception as email_error:
+            print(f"Email failed but DB was updated: {email_error}")
+    
         return {"message": "Password reset email sent"}
-
-    except Exception as e:
+    except Exception as db_error:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(...)
 
 
 @router.post("/reset-password")
