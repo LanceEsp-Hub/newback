@@ -842,6 +842,43 @@ def check_rate_limit(request: Request, limit: int = 5, window: int = 3600):
     # Record new request
     _request_counts.setdefault(client_ip, []).append(now)
 
+# @router.post("/request-password-reset")
+# async def request_password_reset(
+#     request: Request,
+#     email: str = Form(...),
+#     background_tasks: BackgroundTasks = None,
+#     db: Session = Depends(get_db)
+# ):
+#     """Endpoint to request password reset with simple rate limiting."""
+#     # Basic rate limiting (5 requests/hour per IP)
+#     check_rate_limit(request)
+    
+#     # Rest of your existing code...
+#     user = db.query(User).filter(User.email == email).first()
+#     if not user:
+#         raise HTTPException(status_code=404, detail="Email not found")
+
+#     try:
+#         raw_token = secrets.token_urlsafe(32)
+#         user.reset_token = pwd_context.hash(raw_token)
+#         user.reset_token_expires_at = datetime.utcnow() + timedelta(hours=1)
+#         db.commit()
+
+#         if background_tasks:
+#             background_tasks.add_task(
+#                 send_password_reset_email,
+#                 email=user.email,
+#                 reset_token=raw_token
+#             )
+#         else:
+#             await send_password_reset_email(user.email, raw_token)
+
+#         return {"message": "Password reset email sent"}
+
+#     except Exception as e:
+#         db.rollback()
+#         raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/request-password-reset")
 async def request_password_reset(
     request: Request,
@@ -849,56 +886,52 @@ async def request_password_reset(
     background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db)
 ):
-    """Endpoint to request password reset with simple rate limiting."""
-    # Basic rate limiting (5 requests/hour per IP)
+    """Endpoint to request password reset with proper transaction handling"""
+    # Rate limiting
     check_rate_limit(request)
     
-    # Rest of your existing code...
+    # Find user
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(status_code=404, detail="Email not found")
 
-    # try:
-    #     raw_token = secrets.token_urlsafe(32)
-    #     user.reset_token = pwd_context.hash(raw_token)
-    #     user.reset_token_expires_at = datetime.utcnow() + timedelta(hours=1)
-    #     db.commit()
-
-    #     if background_tasks:
-    #         background_tasks.add_task(
-    #             send_password_reset_email,
-    #             email=user.email,
-    #             reset_token=raw_token
-    #         )
-    #     else:
-    #         await send_password_reset_email(user.email, raw_token)
-
-    #     return {"message": "Password reset email sent"}
-
-    # except Exception as e:
-    #     db.rollback()
-    #     raise HTTPException(status_code=500, detail=str(e))
+    # Generate token
+    raw_token = secrets.token_urlsafe(32)
+    hashed_token = pwd_context.hash(raw_token)
+    expires_at = datetime.utcnow() + timedelta(hours=1)
 
     try:
-        # Transaction 1 - Database update
-        raw_token = secrets.token_urlsafe(32)
-        user.reset_token = pwd_context.hash(raw_token)
-        user.reset_token_expires_at = datetime.utcnow() + timedelta(hours=1)
-        db.commit()  # Final commit here
-    
-        # Transaction 2 - Email (can fail without affecting DB)
-        try:
-            if background_tasks:
-                background_tasks.add_task(...)
-            else:
-                await send_password_reset_email(...)
-        except Exception as email_error:
-            print(f"Email failed but DB was updated: {email_error}")
-    
-        return {"message": "Password reset email sent"}
+        # Update user - TRANSACTION 1 (must succeed)
+        user.reset_token = hashed_token
+        user.reset_token_expires_at = expires_at
+        db.commit()
+        
+        # Refresh to verify
+        db.refresh(user)
+        if not user.reset_token:  # Double-check
+            raise HTTPException(status_code=500, detail="Failed to store reset token")
+
     except Exception as db_error:
         db.rollback()
-        raise HTTPException(...)
+        raise HTTPException(status_code=500, detail=f"Database error: {str(db_error)}")
+
+    # Send email - TRANSACTION 2 (can fail separately)
+    try:
+        if background_tasks:
+            background_tasks.add_task(
+                send_password_reset_email,
+                email=user.email,
+                reset_token=raw_token  # Send raw token
+            )
+        else:
+            await send_password_reset_email(user.email, raw_token)
+    except Exception as email_error:
+        # Log but don't fail the request since DB was updated
+        print(f"Email sending failed: {email_error}")
+        # Consider adding retry logic here
+
+    return {"message": "Password reset email sent"}
+
 
 
 @router.post("/reset-password")
