@@ -752,34 +752,51 @@ async def upload_pet_image(
     db: Session = Depends(get_db)
 ):
     try:
-        # Validate file
+        # ✅ Validate file type
         if not file.content_type.startswith('image/'):
-            raise HTTPException(400, detail="Only images allowed")
+            raise HTTPException(status_code=400, detail="Only images are allowed")
 
-        # Generate filename
+        # ✅ Get latest pet
+        latest_pet = db.query(models.Pet).order_by(models.Pet.id.desc()).first()
+        if not latest_pet:
+            raise HTTPException(status_code=404, detail="No pet found")
+
+        # ✅ Create unique filename and subfolder path
         ext = Path(file.filename).suffix.lower()
         filename = f"pet_{uuid.uuid4().hex}{ext}"
+        pet_id = latest_pet.id
+        path_in_bucket = f"{pet_id}/{filename}"  # This creates the subfolder in Supabase
+
+        # ✅ Read file contents
         content = await file.read()
 
-        # Upload to Supabase
+        # ✅ Upload to Supabase
         res = supabase.storage.from_(SUPABASE_BUCKET).upload(
-            path=filename,
+            path=path_in_bucket,
             file=content,
-            file_options={"content-type": file.content_type}
+            file_options={"content-type": file.content_type, "x-upsert": "true"}
         )
 
-        # Return response
-        public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{filename}"
-        
+        # ✅ Handle errors
+        if res.get("error"):
+            raise HTTPException(status_code=500, detail=res["error"]["message"])
+
+        # ✅ Update DB record
+        latest_pet.image = path_in_bucket
+        db.commit()
+
+        # ✅ Return public URL
+        public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{path_in_bucket}"
+
         return {
             "filename": filename,
-            "file_path": f"/uploads/pet_images/{filename}",
+            "file_path": path_in_bucket,
             "url": public_url
         }
 
     except Exception as e:
-        raise HTTPException(500, detail=str(e))
-
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 
