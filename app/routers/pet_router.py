@@ -1,4 +1,5 @@
 # Pet router - Add your pet-related endpoints here
+# # backend/app/routers/pet_router.py
 # backend/app/routers/pet_router.py
 from fastapi import APIRouter, HTTPException, Depends, status, Body, UploadFile, Query, File, Form
 from sqlalchemy.orm import Session
@@ -64,6 +65,8 @@ router.mount("/uploads/pet_images", StaticFiles(directory="app/uploads/pet_image
 UPLOAD_DIR = "app/uploads/pet_images"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+
+
 # Add ONLY if needed ↓
 def create_notification(db: Session, user_id: int, title: str, message: str, notification_type: str = "system"):
     """Helper function to create notifications"""
@@ -121,6 +124,16 @@ async def create_pet(pet_data: dict, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Failed to create pet: {str(e)}")
 
+
+
+
+
+
+
+
+
+
+
 @router.post("/register-device", status_code=201)
 async def register_device(device_data: dict, db: Session = Depends(get_db)):
     """
@@ -177,6 +190,7 @@ async def register_device(device_data: dict, db: Session = Depends(get_db)):
             status_code=400,
             detail={"message": f"Registration failed: {str(e)}"}
         )
+    
 
 @router.patch("/update-device-status/{device_id}", status_code=200)
 async def update_device_status(
@@ -223,7 +237,7 @@ async def update_device_status(
             status_code=400,
             detail={"message": f"Status update failed: {str(e)}"}
         )
-
+    
 @router.get("/devices")
 async def get_all_devices(
     db: Session = Depends(get_db),
@@ -266,7 +280,7 @@ async def get_all_devices(
             status_code=400,
             detail={"message": f"Failed to fetch devices: {str(e)}"}
         )
-
+    
 @router.get("/device-locations/{device_id}", status_code=200)
 async def get_device_locations(
     device_id: int,
@@ -310,6 +324,7 @@ async def get_device_locations(
             status_code=400,
             detail={"message": f"Failed to fetch locations: {str(e)}"}
         )
+
 
 @router.post("/pair-device", status_code=200)
 async def pair_device_with_pet(
@@ -594,6 +609,8 @@ async def get_pet_current_location(
             detail={"message": f"Failed to fetch current location: {str(e)}"}
         )
 
+
+
 @router.patch("/{pet_id}/device-activation", status_code=200)
 async def toggle_device_activation(
     pet_id: int,
@@ -671,6 +688,27 @@ async def toggle_device_activation(
             detail={"message": f"Device activation toggle failed: {str(e)}"}
         )
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 @router.post("/verify-pet-image")
 async def verify_pet_image_endpoint(file: UploadFile = File(...)):
     try:
@@ -707,6 +745,7 @@ async def verify_pet_image_endpoint(file: UploadFile = File(...)):
             "details": str(e)
         }
 
+
 @router.post("/upload-image")
 async def upload_pet_image(
     file: UploadFile = File(...),
@@ -717,67 +756,32 @@ async def upload_pet_image(
         if not file.content_type.startswith('image/'):
             raise HTTPException(400, detail="Only images allowed")
 
-        # Get the latest pet (if exists)
-        latest_pet = db.query(models.Pet).order_by(models.Pet.id.desc()).first()
+        # Generate filename
+        ext = Path(file.filename).suffix.lower()
+        filename = f"pet_{uuid.uuid4().hex}{ext}"
+        content = await file.read()
+
+        # Upload to Supabase
+        res = supabase.storage.from_(SUPABASE_BUCKET).upload(
+            path=filename,
+            file=content,
+            file_options={"content-type": file.content_type}
+        )
+
+        # Return response
+        public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{filename}"
         
-        # Case 1: No pet exists yet (first-time upload)
-        if not latest_pet:
-            # Generate filename with timestamp for temporary storage
-            ext = Path(file.filename).suffix.lower()
-            filename = f"temp_{uuid.uuid4().hex}{ext}"
-            content = await file.read()
-
-            # Upload to Supabase temporary location
-            res = supabase.storage.from_(SUPABASE_BUCKET).upload(
-                path=filename,
-                file=content,
-                file_options={"content-type": file.content_type}
-            )
-
-            # Return response for temporary upload
-            public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{filename}"
-            
-            return {
-                "filename": filename,
-                "file_path": f"/uploads/pet_images/{filename}",
-                "url": public_url
-            }
-
-        # Case 2: Pet exists (subsequent uploads)
-        else:
-            pet_id = latest_pet.id
-            
-            # Generate filename in pet folder
-            ext = Path(file.filename).suffix.lower()
-            filename = f"{pet_id}/main.jpg"
-            content = await file.read()
-
-            # Upload to Supabase in pet folder
-            res = supabase.storage.from_(SUPABASE_BUCKET).upload(
-                path=filename,
-                file=content,
-                file_options={
-                    "content-type": file.content_type,
-                    "upsert": True  # Overwrite if exists
-                }
-            )
-
-            # Update the pet's image path in database
-            latest_pet.image = filename
-            db.commit()
-
-            # Return response
-            public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{filename}"
-            
-            return {
-                "filename": filename,
-                "file_path": f"/uploads/pet_images/{filename}",
-                "url": public_url
-            }
+        return {
+            "filename": filename,
+            "file_path": f"/uploads/pet_images/{filename}",
+            "url": public_url
+        }
 
     except Exception as e:
-        db.rollback()
         raise HTTPException(500, detail=str(e))
+
+
+
 
 @router.get("/dashboard")
 async def get_pets(user_id: int, db: Session = Depends(get_db)):
@@ -806,6 +810,12 @@ async def get_pets(user_id: int, db: Session = Depends(get_db)):
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch pets: {str(e)}")
+    
+
+
+
+
+
 
 @router.get("/{pet_id}")
 async def get_pet(pet_id: int, db: Session = Depends(get_db)):
@@ -864,6 +874,8 @@ async def get_pet(pet_id: int, db: Session = Depends(get_db)):
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
 
 # Add to backend/app/routers/pet_router.py
 @router.delete("/{pet_id}")
@@ -974,7 +986,7 @@ async def toggle_publish_status(
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
 
-# Add admin approval endpoint
+    # Add admin approval endpoint
 @router.patch("/{pet_id}/admin-approval")
 async def update_admin_approval(
     pet_id: int,
@@ -998,6 +1010,9 @@ async def update_admin_approval(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
+    
+
+
 
 @router.patch("/{pet_id}")
 async def update_pet_details(
@@ -1072,6 +1087,7 @@ async def update_pet_details(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
+    
 
 @router.post("/{pet_id}/update-image")
 async def update_pet_image_endpoint(
@@ -1091,7 +1107,7 @@ async def update_pet_image_endpoint(
 
         # Generate filename
         ext = Path(file.filename).suffix.lower()
-        filename = f"{pet_id}/main.jpg"
+        filename = f"pet_{pet_id}_main_{uuid.uuid4().hex}{ext}"
         content = await file.read()
 
         # Delete old image if exists
@@ -1105,10 +1121,7 @@ async def update_pet_image_endpoint(
         res = supabase.storage.from_(SUPABASE_BUCKET).upload(
             path=filename,
             file=content,
-            file_options={
-                "content-type": file.content_type,
-                "upsert": True
-            }
+            file_options={"content-type": file.content_type}
         )
 
         # Update pet record
@@ -1130,6 +1143,8 @@ async def update_pet_image_endpoint(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
+
+
 @router.post("/{pet_id}/add-additional-image")
 async def add_additional_image(
     pet_id: int,
@@ -1150,7 +1165,7 @@ async def add_additional_image(
 
         # Generate filename
         ext = Path(file.filename).suffix.lower()
-        filename = f"{pet_id}/{image_type}.jpg"
+        filename = f"pet_{pet_id}_{image_type}_{uuid.uuid4().hex}{ext}"
         content = await file.read()
 
         # Initialize additional_images if None
@@ -1160,7 +1175,7 @@ async def add_additional_image(
         # Check if this image type already exists and remove old one
         old_filename = None
         for i, img in enumerate(pet.additional_images):
-            if f"/{image_type}." in img:
+            if f"_{image_type}_" in img:
                 old_filename = pet.additional_images.pop(i)
                 break
 
@@ -1175,10 +1190,7 @@ async def add_additional_image(
         res = supabase.storage.from_(SUPABASE_BUCKET).upload(
             path=filename,
             file=content,
-            file_options={
-                "content-type": file.content_type,
-                "upsert": True
-            }
+            file_options={"content-type": file.content_type}
         )
 
         # Update the pet's additional_images array
@@ -1242,6 +1254,7 @@ async def remove_additional_image(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.delete("/{pet_id}/clear-additional-images")
 async def clear_additional_images(
     pet_id: int,
@@ -1281,6 +1294,7 @@ async def clear_additional_images(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+    
 
 @router.post("/{pet_id}/generate-fingerprint")
 async def generate_pet_fingerprint(
@@ -1327,7 +1341,7 @@ async def generate_pet_fingerprint(
         "pet_id": pet_id,
         "status": status
     }
-
+    
 @router.get("/{pet_id}/check-fingerprint")
 async def check_fingerprint_exists(
     pet_id: int,
@@ -1335,6 +1349,12 @@ async def check_fingerprint_exists(
 ):
     features_path = Path(f"app/uploads/pet_images/{pet_id}/features.json")
     return {"exists": features_path.exists()}
+
+
+
+
+
+
 
 @router.get("/{pet_id}/flyer-data")
 def get_pet_flyer_data(pet_id: int, db: Session = Depends(get_db)):
@@ -1380,6 +1400,8 @@ def get_pet_flyer_data(pet_id: int, db: Session = Depends(get_db)):
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
 
 @router.get("/{pet_id}/find-similar")
 async def find_similar_pets(
@@ -1566,6 +1588,9 @@ async def find_similar_pets(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
+ 
+
+
 @router.get("/rehome/")
 async def get_rehome_pets(
     type: Optional[str] = None,
@@ -1735,6 +1760,8 @@ async def get_user_applications(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+
 
 # backend/app/routers/pet_router.py
 @router.get("/pet/{pet_id}/adoption-status")
@@ -1759,6 +1786,7 @@ async def check_adoption_status(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/pet/{pet_id}/adopt", status_code=status.HTTP_201_CREATED)
 async def adopt_pet(
@@ -2015,6 +2043,7 @@ async def update_adoption_status(
             status_code=500,
             detail=f"Failed to update adoption status: {str(e)}"
         )
+
 
 
 
