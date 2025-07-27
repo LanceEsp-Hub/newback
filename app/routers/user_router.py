@@ -732,60 +732,108 @@ async def change_user_password(
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
 
+# @router.post("/{user_id}/request-password-reset")
+# async def request_user_password_reset(
+#     user_id: int,
+#     background_tasks: BackgroundTasks,
+#     db: Session = Depends(get_db)
+# ):
+#     try:
+#         user = db.query(models.User).filter(models.User.id == user_id).first()
+#         if not user:
+#             raise HTTPException(status_code=404, detail="User not found")
+        
+#         reset_token = secrets.token_urlsafe(32)
+#         reset_tokens[reset_token] = {
+#             "user_id": user_id,
+#             "expires_at": datetime.utcnow() + timedelta(hours=1)
+#         }
+        
+#         # Send email in background
+#         background_tasks.add_task(
+#             send_password_reset_email,
+#             email=user.email,
+#             reset_token=reset_token
+#         )
+        
+#         return {"message": "Password reset email sent"}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+
+# @router.post("/reset-password")
+# async def reset_password(
+#     token: str = Query(...),
+#     new_password: str = Query(...),
+#     db: Session = Depends(get_db)
+# ):
+#     try:
+#         # Verify token exists and isn't expired
+#         token_data = reset_tokens.get(token)
+#         if not token_data or token_data["expires_at"] < datetime.utcnow():
+#             raise HTTPException(status_code=400, detail="Invalid or expired token")
+        
+#         # Get user from token data
+#         user = db.query(models.User).filter(models.User.id == token_data["user_id"]).first()
+#         if not user:
+#             raise HTTPException(status_code=404, detail="User not found")
+        
+#         # Update password
+#         user.hashed_password = pwd_context.hash(new_password)
+#         db.commit()
+        
+#         # Clean up used token
+#         del reset_tokens[token]
+        
+#         return {"message": "Password reset successfully"}
+#     except Exception as e:
+#         db.rollback()
+#         raise HTTPException(status_code=400, detail=str(e))
+
 @router.post("/{user_id}/request-password-reset")
 async def request_user_password_reset(
     user_id: int,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
-    try:
-        user = db.query(models.User).filter(models.User.id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        reset_token = secrets.token_urlsafe(32)
-        reset_tokens[reset_token] = {
-            "user_id": user_id,
-            "expires_at": datetime.utcnow() + timedelta(hours=1)
-        }
-        
-        # Send email in background
-        background_tasks.add_task(
-            send_password_reset_email,
-            email=user.email,
-            reset_token=reset_token
-        )
-        
-        return {"message": "Password reset email sent"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Generate and save hashed token to DB (not memory)
+    raw_token = secrets.token_urlsafe(32)
+    user.reset_token = pwd_context.hash(raw_token)  # Store hashed
+    user.reset_token_expires_at = datetime.utcnow() + timedelta(hours=1)
+    db.commit()
+
+    # Send email with RAW token (frontend will submit it later)
+    background_tasks.add_task(
+        send_password_reset_email,
+        email=user.email,
+        reset_token=raw_token  # Send raw token, but store hashed
+    )
+
+    return {"message": "Password reset email sent"}
 
 @router.post("/reset-password")
 async def reset_password(
-    token: str = Query(...),
-    new_password: str = Query(...),
+    token: str = Form(...),  # Use Form, not Query!
+    new_password: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    try:
-        # Verify token exists and isn't expired
-        token_data = reset_tokens.get(token)
-        if not token_data or token_data["expires_at"] < datetime.utcnow():
-            raise HTTPException(status_code=400, detail="Invalid or expired token")
-        
-        # Get user from token data
-        user = db.query(models.User).filter(models.User.id == token_data["user_id"]).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        # Update password
-        user.hashed_password = pwd_context.hash(new_password)
-        db.commit()
-        
-        # Clean up used token
-        del reset_tokens[token]
-        
-        return {"message": "Password reset successfully"}
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+    # Find user with unexpired token
+    user = db.query(models.User).filter(
+        models.User.reset_token.isnot(None),
+        models.User.reset_token_expires_at > datetime.utcnow()
+    ).first()
 
+    # Verify token (compare hashed)
+    if not user or not pwd_context.verify(token, user.reset_token):
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
+
+    # Update password and clear token
+    user.hashed_password = pwd_context.hash(new_password)
+    user.reset_token = None
+    user.reset_token_expires_at = None
+    db.commit()
+
+    return {"message": "Password reset successfully"}
