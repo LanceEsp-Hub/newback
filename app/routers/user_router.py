@@ -890,7 +890,7 @@ async def request_password_reset(
     # Rate limiting
     check_rate_limit(request)
     
-    # Find user
+    # Find user - this part is working as shown in your logs
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(status_code=404, detail="Email not found")
@@ -900,35 +900,41 @@ async def request_password_reset(
     hashed_token = pwd_context.hash(raw_token)
     expires_at = datetime.utcnow() + timedelta(hours=1)
 
+    # DEBUG: Print before update
+    print(f"DEBUG - Before update: Token exists? {user.reset_token is not None}")
+
     try:
-        # Update user - TRANSACTION 1 (must succeed)
+        # Update user
         user.reset_token = hashed_token
         user.reset_token_expires_at = expires_at
+        
+        # DEBUG: Verify in-memory object
+        print(f"DEBUG - In-memory object: {user.reset_token} | {user.reset_token_expires_at}")
+        
         db.commit()
         
-        # Refresh to verify
+        # DEBUG: Verify after commit
         db.refresh(user)
-        if not user.reset_token:  # Double-check
-            raise HTTPException(status_code=500, detail="Failed to store reset token")
+        print(f"DEBUG - After commit/refresh: {user.reset_token} | {user.reset_token_expires_at}")
 
     except Exception as db_error:
+        print(f"ERROR - Database commit failed: {db_error}")
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(db_error)}")
 
-    # Send email - TRANSACTION 2 (can fail separately)
+    # Send email
     try:
         if background_tasks:
+            # Ensure we're passing the raw token
             background_tasks.add_task(
                 send_password_reset_email,
                 email=user.email,
-                reset_token=raw_token  # Send raw token
+                reset_token=raw_token  # Important: raw token, not hashed
             )
         else:
             await send_password_reset_email(user.email, raw_token)
     except Exception as email_error:
-        # Log but don't fail the request since DB was updated
-        print(f"Email sending failed: {email_error}")
-        # Consider adding retry logic here
+        print(f"ERROR - Email failed but token was saved: {email_error}")
 
     return {"message": "Password reset email sent"}
 
