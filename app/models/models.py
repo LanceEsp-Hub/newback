@@ -333,6 +333,8 @@ class Device(Base):
     paired_at = Column(DateTime, nullable=True)
     last_seen = Column(DateTime, nullable=True)
     is_online = Column(Boolean, default=False)
+    status = Column(String(20), default='working')  # New column: 'working' or 'removed'
+
     
     # Relationships
     pet = relationship("Pet", back_populates="device")
