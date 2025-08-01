@@ -1155,6 +1155,64 @@ async def update_pet_details(
         raise HTTPException(status_code=400, detail=str(e))
     
 
+# @router.post("/{pet_id}/update-image")
+# async def update_pet_image_endpoint(
+#     pet_id: int,
+#     file: UploadFile = File(...),
+#     db: Session = Depends(get_db)
+# ):
+#     try:
+#         # Validate file
+#         if not file.content_type.startswith('image/'):
+#             raise HTTPException(400, detail="Only images allowed")
+
+#         # Verify pet exists
+#         pet = db.query(models.Pet).filter(models.Pet.id == pet_id).first()
+#         if not pet:
+#             raise HTTPException(status_code=404, detail="Pet not found")
+
+#         # Generate filename with proper path structure
+#         filename = "main.jpg"
+#         path_in_bucket = f"{pet_id}/{filename}"  # This creates "1/main.jpg"
+#         content = await file.read()
+
+#         # Delete old image if exists
+#         if pet.image:
+#             try:
+#                 supabase.storage.from_(SUPABASE_BUCKET).remove([pet.image])
+#             except:
+#                 pass  # Continue even if deletion fails
+
+#         # Upload new image to Supabase
+#         res = supabase.storage.from_(SUPABASE_BUCKET).upload(
+#             path=path_in_bucket,
+#             file=content,
+#             file_options={"content-type": file.content_type, "x-upsert": "true"}
+#         )
+
+#         # Handle errors
+#         if res.get("error"):
+#             raise HTTPException(status_code=500, detail=res["error"]["message"])
+
+#         # Update pet record with the full path
+#         pet.image = path_in_bucket  # This will be "1/main.jpg"
+#         db.commit()
+
+#         public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{path_in_bucket}"
+
+#         return {
+#             "success": True,
+#             "filename": filename,
+#             "file_path": path_in_bucket,  # Returns "1/main.jpg"
+#             "url": public_url
+#         }
+
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         db.rollback()
+#         raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/{pet_id}/update-image")
 async def update_pet_image_endpoint(
     pet_id: int,
@@ -1184,15 +1242,14 @@ async def update_pet_image_endpoint(
                 pass  # Continue even if deletion fails
 
         # Upload new image to Supabase
-        res = supabase.storage.from_(SUPABASE_BUCKET).upload(
-            path=path_in_bucket,
-            file=content,
-            file_options={"content-type": file.content_type, "x-upsert": "true"}
-        )
-
-        # Handle errors
-        if res.get("error"):
-            raise HTTPException(status_code=500, detail=res["error"]["message"])
+        try:
+            res = supabase.storage.from_(SUPABASE_BUCKET).upload(
+                path=path_in_bucket,
+                file=content,
+                file_options={"content-type": file.content_type, "x-upsert": "true"}
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
         # Update pet record with the full path
         pet.image = path_in_bucket  # This will be "1/main.jpg"
@@ -1212,6 +1269,8 @@ async def update_pet_image_endpoint(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+
 
 
 
