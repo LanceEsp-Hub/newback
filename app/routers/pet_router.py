@@ -1274,6 +1274,80 @@ async def update_pet_image_endpoint(
 
 
 
+# @router.post("/{pet_id}/add-additional-image")
+# async def add_additional_image(
+#     pet_id: int,
+#     file: UploadFile = File(...),
+#     image_type: str = Form(...),
+#     db: Session = Depends(get_db)
+# ):
+#     try:
+#         # Verify pet exists
+#         pet = db.query(models.Pet).filter(models.Pet.id == pet_id).first()
+#         if not pet:
+#             raise HTTPException(status_code=404, detail="Pet not found")
+
+#         # Validate image type
+#         valid_types = ["face", "side", "fur"]
+#         if image_type not in valid_types:
+#             raise HTTPException(status_code=400, detail="Invalid image type. Must be face, side, or fur")
+
+#         # Generate filename with proper path structure
+#         filename = f"{image_type}.jpg"
+#         path_in_bucket = f"{pet_id}/{filename}"  # This creates "1/face.jpg", "1/side.jpg", etc.
+#         content = await file.read()
+
+#         # Initialize additional_images if None
+#         if pet.additional_images is None:
+#             pet.additional_images = []
+
+#         # Check if this image type already exists and remove old one
+#         old_path = None
+#         for i, img_path in enumerate(pet.additional_images):
+#             if img_path.endswith(f"/{filename}"):
+#                 old_path = pet.additional_images.pop(i)
+#                 break
+
+#         # Delete old image from Supabase if exists
+#         if old_path:
+#             try:
+#                 supabase.storage.from_(SUPABASE_BUCKET).remove([old_path])
+#             except:
+#                 pass
+
+#         # Upload new image to Supabase
+#         res = supabase.storage.from_(SUPABASE_BUCKET).upload(
+#             path=path_in_bucket,
+#             file=content,
+#             file_options={"content-type": file.content_type, "x-upsert": "true"}
+#         )
+
+#         # Handle errors
+#         if res.get("error"):
+#             raise HTTPException(status_code=500, detail=res["error"]["message"])
+
+#         # Update the pet's additional_images array with the full path
+#         pet.additional_images.append(path_in_bucket)  # This will be "1/face.jpg"
+#         flag_modified(pet, "additional_images")
+#         db.commit()
+#         db.refresh(pet)
+
+#         public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{path_in_bucket}"
+
+#         return {
+#             "success": True,
+#             "filename": filename,
+#             "file_path": path_in_bucket,  # Returns "1/face.jpg"
+#             "url": public_url,
+#             "all_images": pet.additional_images
+#         }
+
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         db.rollback()
+#         raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/{pet_id}/add-additional-image")
 async def add_additional_image(
     pet_id: int,
@@ -1302,32 +1376,33 @@ async def add_additional_image(
             pet.additional_images = []
 
         # Check if this image type already exists and remove old one
-        old_path = None
-        for i, img_path in enumerate(pet.additional_images):
-            if img_path.endswith(f"/{filename}"):
-                old_path = pet.additional_images.pop(i)
+        old_filename = None
+        for i, img_filename in enumerate(pet.additional_images):
+            if img_filename == filename:  # Check if filename already exists
+                old_filename = pet.additional_images.pop(i)
                 break
 
         # Delete old image from Supabase if exists
-        if old_path:
+        if old_filename:
+            old_path_in_bucket = f"{pet_id}/{old_filename}"
             try:
-                supabase.storage.from_(SUPABASE_BUCKET).remove([old_path])
+                supabase.storage.from_(SUPABASE_BUCKET).remove([old_path_in_bucket])
             except:
                 pass
 
         # Upload new image to Supabase
-        res = supabase.storage.from_(SUPABASE_BUCKET).upload(
-            path=path_in_bucket,
-            file=content,
-            file_options={"content-type": file.content_type, "x-upsert": "true"}
-        )
+        try:
+            res = supabase.storage.from_(SUPABASE_BUCKET).upload(
+                path=path_in_bucket,
+                file=content,
+                file_options={"content-type": file.content_type, "x-upsert": "true"}
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
-        # Handle errors
-        if res.get("error"):
-            raise HTTPException(status_code=500, detail=res["error"]["message"])
-
-        # Update the pet's additional_images array with the full path
-        pet.additional_images.append(path_in_bucket)  # This will be "1/face.jpg"
+        # Update the pet's additional_images array with the filename only
+        # This will store ["face.jpg", "side.jpg", "fur.jpg"] in the database
+        pet.additional_images.append(filename)  # This will be "face.jpg", "side.jpg", etc.
         flag_modified(pet, "additional_images")
         db.commit()
         db.refresh(pet)
