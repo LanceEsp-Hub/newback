@@ -529,14 +529,13 @@ async def update_pair_device_with_pet(
             status_code=500,
             detail={"message": f"Update pairing failed: {str(e)}"}
         )
+
 @router.get("/{pet_id}/device-info", status_code=200)
 async def get_pet_device_info(
     pet_id: int,
-    user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-@
     Get device information for a specific pet
     """
     try:
