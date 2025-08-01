@@ -529,13 +529,14 @@ async def update_pair_device_with_pet(
             status_code=500,
             detail={"message": f"Update pairing failed: {str(e)}"}
         )
-
 @router.get("/{pet_id}/device-info", status_code=200)
 async def get_pet_device_info(
     pet_id: int,
+    user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
+@
     Get device information for a specific pet
     """
     try:
@@ -545,10 +546,11 @@ async def get_pet_device_info(
         ).first()
         
         if not device:
-            raise HTTPException(
-                status_code=404,
-                detail={"message": "No device paired with this pet"}
-            )
+            return {
+                "status": "success",
+                "data": None,
+                "message": "No device paired with this pet"
+            }
         
         return {
             "status": "success",
@@ -562,13 +564,50 @@ async def get_pet_device_info(
             }
         }
         
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(
             status_code=500,
             detail={"message": f"Failed to fetch device info: {str(e)}"}
         )
+# @router.get("/{pet_id}/device-info", status_code=200)
+# async def get_pet_device_info(
+#     pet_id: int,
+#     db: Session = Depends(get_db)
+# ):
+#     """
+#     Get device information for a specific pet
+#     """
+#     try:
+#         # Find device paired with this pet
+#         device = db.query(models.Device).filter(
+#             models.Device.pet_id == pet_id
+#         ).first()
+        
+#         if not device:
+#             raise HTTPException(
+#                 status_code=404,
+#                 detail={"message": "No device paired with this pet"}
+#             )
+        
+#         return {
+#             "status": "success",
+#             "data": {
+#                 "device_id": device.device_id,
+#                 "unique_code": device.unique_code,
+#                 "is_active": device.is_active,
+#                 "is_online": device.is_online,
+#                 "status": device.status,
+#                 "paired_at": device.paired_at.isoformat() if device.paired_at else None
+#             }
+#         }
+        
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=500,
+#             detail={"message": f"Failed to fetch device info: {str(e)}"}
+#         )
 
 @router.get("/{pet_id}/current-location", status_code=200)
 async def get_pet_current_location(
