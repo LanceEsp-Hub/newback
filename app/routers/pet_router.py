@@ -1465,6 +1465,40 @@ async def remove_additional_image(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# @router.delete("/{pet_id}/clear-additional-images")
+# async def clear_additional_images(
+#     pet_id: int,
+#     db: Session = Depends(get_db)
+# ):
+#     try:
+#         # Verify pet exists
+#         pet = db.query(models.Pet).filter(models.Pet.id == pet_id).first()
+#         if not pet:
+#             raise HTTPException(status_code=404, detail="Pet not found")
+
+#         # Delete additional images from Supabase
+#         if pet.additional_images:
+#             try:
+#                 supabase.storage.from_(SUPABASE_BUCKET).remove(pet.additional_images)
+#             except Exception as e:
+#                 print(f"Warning: Failed to delete images from Supabase: {str(e)}")
+
+#         # Clear additional_images array in database but keep main image
+#         if pet.additional_images:
+#             pet.additional_images = []
+#             flag_modified(pet, "additional_images")
+#             db.commit()
+
+#         return {
+#             "success": True,
+#             "message": "Additional images cleared successfully",
+#             "main_image": pet.image  # Return the preserved main image path
+#         }
+
+#     except Exception as e:
+#         db.rollback()
+#         raise HTTPException(status_code=500, detail=str(e))
+
 @router.delete("/{pet_id}/clear-additional-images")
 async def clear_additional_images(
     pet_id: int,
@@ -1479,7 +1513,9 @@ async def clear_additional_images(
         # Delete additional images from Supabase
         if pet.additional_images:
             try:
-                supabase.storage.from_(SUPABASE_BUCKET).remove(pet.additional_images)
+                # Convert filenames to full paths for Supabase deletion
+                paths_to_delete = [f"{pet_id}/{filename}" for filename in pet.additional_images]
+                supabase.storage.from_(SUPABASE_BUCKET).remove(paths_to_delete)
             except Exception as e:
                 print(f"Warning: Failed to delete images from Supabase: {str(e)}")
 
