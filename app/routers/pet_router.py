@@ -1833,6 +1833,102 @@ async def find_similar_pets(
  
 
 
+# @router.get("/rehome/")
+# async def get_rehome_pets(
+#     type: Optional[str] = None,
+#     gender: Optional[str] = None,
+#     location: Optional[str] = None,
+#     good_with: Optional[str] = None,
+#     energy_level: Optional[str] = None,
+#     user_id: Optional[int] = None,
+#     skip: int = 0,
+#     limit: int = 100,
+#     db: Session = Depends(get_db)
+# ):
+#     try:
+#         # Base query with joins
+#         query = db.query(
+#             models.Pet,
+#             models.User.name.label("owner_name"),
+#             models.User.phone_number.label("owner_phone"),
+#             models.PetHealth  # Include PetHealth directly in the query
+#         )\
+#             .join(models.User, models.Pet.user_id == models.User.id)\
+#             .outerjoin(models.PetHealth, models.Pet.id == models.PetHealth.pet_id)\
+#             .filter(models.Pet.status == "Rehome Pet")\
+#             .filter(models.Pet.is_published == True)\
+#             .filter(models.Pet.admin_approved == True)
+        
+#         # Exclude user's own pets if user_id is provided
+#         if user_id:
+#             query = query.filter(models.Pet.user_id != user_id)
+        
+#         # Apply filters
+#         if type:
+#             query = query.filter(models.Pet.type.ilike(f"%{type}%"))
+#         if gender:
+#             query = query.filter(models.Pet.gender.ilike(f"%{gender}%"))
+#         if location:
+#             query = query.filter(models.Pet.address.ilike(f"%{location}%"))
+        
+#         # New filters for PetHealth fields
+#         if good_with:
+#             for trait in good_with.split(','):
+#                 trait = trait.strip().lower()
+#                 if trait == "children":
+#                     query = query.filter(models.PetHealth.good_with_children == True)
+#                 elif trait == "dogs":
+#                     query = query.filter(models.PetHealth.good_with_dogs == True)
+#                 elif trait == "cats":
+#                     query = query.filter(models.PetHealth.good_with_cats == True)
+#                 elif trait == "elderly":
+#                     query = query.filter(models.PetHealth.good_with_elderly == True)
+#                 elif trait == "strangers":
+#                     query = query.filter(models.PetHealth.good_with_strangers == True)
+        
+#         if energy_level:
+#             query = query.filter(models.PetHealth.energy_level.ilike(f"%{energy_level}%"))
+        
+#         # Execute query
+#         results = query.offset(skip).limit(limit).all()
+            
+#         return [{
+#             "id": pet.id,
+#             "name": pet.name,
+#             "type": pet.type,
+#             "gender": pet.gender,
+#             "image": pet.image,  # This is now "1/main.jpg" format
+#             "location": pet.address,
+#             "status": pet.status,
+#             "additional_images": pet.additional_images,
+#             "description": pet.description,
+#             "date": pet.date.isoformat() if pet.date else None,
+#             "latitude": pet.latitude,
+#             "longitude": pet.longitude,
+#             "user_id": pet.user_id,
+#             "owner_info": {
+#                 "name": owner_name,
+#                 "phone": owner_phone
+#             },
+#             "health_info": {
+#                 "vaccinated": health.vaccinated if health else None,
+#                 "spayed_neutered": health.spayed_neutered if health else None,
+#                 "good_with": {
+#                     "children": health.good_with_children if health else None,
+#                     "dogs": health.good_with_dogs if health else None,
+#                     "cats": health.good_with_cats if health else None,
+#                     "elderly": health.good_with_elderly if health else None,
+#                     "strangers": health.good_with_strangers if health else None
+#                 } if health else None,
+#                 "energy_level": health.energy_level if health else None,
+#                 "temperament_personality": health.temperament_personality if health else None,
+#                 "reason_for_adoption": health.reason_for_adoption if health else None
+#             }
+#         } for pet, owner_name, owner_phone, health in results]  # Now includes health in unpacking
+
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/rehome/")
 async def get_rehome_pets(
     type: Optional[str] = None,
@@ -1845,6 +1941,15 @@ async def get_rehome_pets(
     limit: int = 100,
     db: Session = Depends(get_db)
 ):
+    print(f"Fetching rehome pets with filters: type={type}, gender={gender}, location={location}, user_id={user_id}")  # Debug log
+    
+    # Debug: Check all pets and their status
+    all_pets = db.query(models.Pet).all()
+    status_counts = {}
+    for pet in all_pets:
+        status_counts[pet.status] = status_counts.get(pet.status, 0) + 1
+    print(f"All pets status counts: {status_counts}")  # Debug log
+    
     try:
         # Base query with joins
         query = db.query(
@@ -1858,6 +1963,8 @@ async def get_rehome_pets(
             .filter(models.Pet.status == "Rehome Pet")\
             .filter(models.Pet.is_published == True)\
             .filter(models.Pet.admin_approved == True)
+        
+        print(f"Base query filters: status='Rehome Pet', is_published=True, admin_approved=True")  # Debug log
         
         # Exclude user's own pets if user_id is provided
         if user_id:
@@ -1891,6 +1998,7 @@ async def get_rehome_pets(
         
         # Execute query
         results = query.offset(skip).limit(limit).all()
+        print(f"Found {len(results)} rehome pets")  # Debug log
             
         return [{
             "id": pet.id,
@@ -1928,6 +2036,7 @@ async def get_rehome_pets(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/adoption-application")
 async def submit_adoption_application(
