@@ -1929,6 +1929,7 @@ async def find_similar_pets(
 #     except Exception as e:
 #         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.get("/rehome/")
 async def get_rehome_pets(
     type: Optional[str] = None,
@@ -1941,15 +1942,6 @@ async def get_rehome_pets(
     limit: int = 100,
     db: Session = Depends(get_db)
 ):
-    print(f"Fetching rehome pets with filters: type={type}, gender={gender}, location={location}, user_id={user_id}")  # Debug log
-    
-    # Debug: Check all pets and their status
-    all_pets = db.query(models.Pet).all()
-    status_counts = {}
-    for pet in all_pets:
-        status_counts[pet.status] = status_counts.get(pet.status, 0) + 1
-    print(f"All pets status counts: {status_counts}")  # Debug log
-    
     try:
         # Base query with joins
         query = db.query(
@@ -1963,8 +1955,6 @@ async def get_rehome_pets(
             .filter(models.Pet.status == "Rehome Pet")\
             .filter(models.Pet.is_published == True)\
             .filter(models.Pet.admin_approved == True)
-        
-        print(f"Base query filters: status='Rehome Pet', is_published=True, admin_approved=True")  # Debug log
         
         # Exclude user's own pets if user_id is provided
         if user_id:
@@ -1998,14 +1988,13 @@ async def get_rehome_pets(
         
         # Execute query
         results = query.offset(skip).limit(limit).all()
-        print(f"Found {len(results)} rehome pets")  # Debug log
             
         return [{
             "id": pet.id,
             "name": pet.name,
             "type": pet.type,
             "gender": pet.gender,
-            "image": pet.image,  # This is now "1/main.jpg" format
+            "image": pet.image,
             "location": pet.address,
             "status": pet.status,
             "additional_images": pet.additional_images,
@@ -2036,7 +2025,6 @@ async def get_rehome_pets(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/adoption-application")
 async def submit_adoption_application(
