@@ -280,8 +280,7 @@ async def upload_message_image(
             
             return {
                 "success": True,
-                "filename": filename,
-                "file_path": public_url
+                "filename": filename
             }
             
         except Exception as supabase_error:
