@@ -1833,6 +1833,7 @@ async def find_similar_pets(
  
 
 
+
 # @router.get("/rehome/")
 # async def get_rehome_pets(
 #     type: Optional[str] = None,
@@ -1897,7 +1898,7 @@ async def find_similar_pets(
 #             "name": pet.name,
 #             "type": pet.type,
 #             "gender": pet.gender,
-#             "image": pet.image,  # This is now "1/main.jpg" format
+#             "image": pet.image,
 #             "location": pet.address,
 #             "status": pet.status,
 #             "additional_images": pet.additional_images,
@@ -1928,7 +1929,6 @@ async def find_similar_pets(
 
 #     except Exception as e:
 #         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/rehome/")
 async def get_rehome_pets(
@@ -1994,7 +1994,7 @@ async def get_rehome_pets(
             "name": pet.name,
             "type": pet.type,
             "gender": pet.gender,
-            "image": pet.image,
+            "image": pet.image,  # This is now "1/main.jpg" format
             "location": pet.address,
             "status": pet.status,
             "additional_images": pet.additional_images,
