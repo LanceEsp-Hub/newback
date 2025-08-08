@@ -57,20 +57,31 @@ class PetAlertResponse(BaseModel):
 
 # Database fetch functions
 def get_pet_status(device_id: int) -> Dict[str, Any]:
-    """Fetch pet status from xxpets_db"""
-    pet_data = supabase.table("xxpets_db") \
-        .select("*") \
+    """Fetch pet status by joining xxdevice_db and xxpets_db"""
+    device_data = supabase.table("xxdevice_db") \
+        .select("pet_id, xxpets_db(status)") \
         .eq("device_id", device_id) \
         .execute()
+    
+    if not device_data.data or not device_data.data[0].get("pet_id"):
+        return None
+    
+    pet_data = supabase.table("xxpets_db") \
+        .select("*") \
+        .eq("id", device_data.data[0]["pet_id"]) \
+        .execute()
+    
     return pet_data.data[0] if pet_data.data else None
+
 
 def get_user_phone_number(user_id: int) -> Optional[str]:
     """Fetch phone number from xxaccount_db"""
     account_data = supabase.table("xxaccount_db") \
         .select("phone_number") \
-        .eq("user_id", user_id) \
+        .eq("id", user_id) \
         .execute()
     return account_data.data[0].get("phone_number") if account_data.data else None
+
 
 # Routes
 @router.post("/location", response_model=PetAlertResponse, status_code=status.HTTP_201_CREATED)
