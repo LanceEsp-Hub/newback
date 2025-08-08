@@ -138,11 +138,11 @@ async def create_device_location(
             "status": "safe"
         }
 
-        if pet and pet.get("status") == "missing":
+        if pet and pet.get("status") == "Lost":
             phone_number = get_user_phone_number(pet["user_id"])
             response_data.update({
                 "phone_number": phone_number,
-                "status": "missing"
+                "status": "Lost"
             })
 
         return response_data
