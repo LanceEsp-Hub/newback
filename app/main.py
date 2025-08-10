@@ -351,7 +351,8 @@ from .routers import (
     success_stories_router,
     security_router,
     file_upload_router,
-    device_router
+    device_router,
+    voucher_router
 )
 from .core.config import settings
 from pathlib import Path
@@ -403,6 +404,7 @@ app.include_router(success_stories_router.router)
 app.include_router(security_router.router)
 
 app.include_router(device_router.router)
+app.include_router(voucher_router.router)
 
 
 # app.include_router(user_router.router, prefix="/api/users", tags=["Users"])
