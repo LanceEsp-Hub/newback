@@ -358,7 +358,7 @@
 
 # backend/app/models/models.py
 # dasdadasd
-from sqlalchemy import Boolean, Text, Float, Integer, String, Column, DateTime, ForeignKey, UniqueConstraint  
+from sqlalchemy import Boolean, Text, Float, Integer, String, Column, DateTime, ForeignKey, UniqueConstraint, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB  # For PostgreSQL
 from app.database.database import Base
