@@ -323,12 +323,12 @@ async def update_product_admin(
 
     # Handle image upload
     if image:
-        upload_dir = "app/uploads"
-        os.makedirs(upload_dir, exist_ok=True)
-        file_path = os.path.join(upload_dir, image.filename)
-        with open(file_path, "wb") as f:
-            f.write(await image.read())
-        db_product.image_url = f"/uploads/{image.filename}"
+        upload_dir = Path("app/uploads/products")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        file_location = upload_dir / f"{sku}_{image.filename}"
+        with file_location.open("wb") as buffer:
+            shutil.copyfileobj(image.file, buffer)
+        db_product.image_url = f"/uploads/products/{sku}_{image.filename}"
 
     db.commit()
     db.refresh(db_product)
@@ -585,4 +585,5 @@ def get_delivery_fee(db: Session = Depends(get_db)):
     return {
         "delivery_fee": float(settings.delivery_fee),
         "free_shipping_threshold": float(settings.free_shipping_threshold) if settings.free_shipping_threshold else None
+
     }
