@@ -355,25 +355,27 @@ def delete_product(product_id: int, db: Session = Depends(get_db)):
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    # Save product name snapshot in inventory_logs
-    db.query(InventoryLog).filter(InventoryLog.product_id == product_id).update(
-        {
-            InventoryLog.product_name_snapshot: product.name,
-            InventoryLog.product_id: None,
-        }
-    )
+    try:
+        # Delete related inventory logs first
+        db.query(InventoryLog).filter(InventoryLog.product_id == product_id).delete()
 
-    # Delete related cart items
-    db.query(CartItem).filter(CartItem.product_id == product_id).delete()
+        # Delete related cart items
+        db.query(CartItem).filter(CartItem.product_id == product_id).delete()
 
-    # Delete related order items
-    db.query(OrderItem).filter(OrderItem.product_id == product_id).delete()
+        # Delete related order items
+        db.query(OrderItem).filter(OrderItem.product_id == product_id).delete()
 
-    # Delete product
-    db.delete(product)
-    db.commit()
+        # Delete product
+        db.delete(product)
+        db.commit()
 
-    return {"message": "Product deleted successfully"}
+        return {"message": "Product deleted successfully"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete product: {str(e)}"
+        )
 
 
 @router.get("/admin/products", response_model=List[ProductAdminResponse])
