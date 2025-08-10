@@ -360,10 +360,29 @@ from pathlib import Path
 
 # Configuration
 SECRET_KEY = os.getenv("SESSION_SECRET_KEY", "asdasdasdsad")
-UPLOAD_DIR = Path("app/uploads/pet_images")
+
+# Create all upload directories before mounting static files
+import os
+current_dir = os.getcwd()
+print(f"Current working directory: {current_dir}")
+
+UPLOAD_DIR = Path("app/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-Path("app/uploads/success_stories").mkdir(parents=True, exist_ok=True)
-Path("app/uploads/messages").mkdir(parents=True, exist_ok=True)
+print(f"Created upload directory: {UPLOAD_DIR.absolute()}")
+
+# Create subdirectories
+subdirs = [
+    "app/uploads/pet_images",
+    "app/uploads/success_stories", 
+    "app/uploads/messages",
+    "app/uploads/profile_pictures",
+    "app/uploads/products"
+]
+
+for subdir in subdirs:
+    path = Path(subdir)
+    path.mkdir(parents=True, exist_ok=True)
+    print(f"Created directory: {path.absolute()}")
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -421,11 +440,26 @@ app.include_router(ecommerce_router.router)
 # app.include_router(security_router.router, prefix="/api/security", tags=["Security"])
 # app.include_router(file_upload_router.router, prefix="/api/upload", tags=["File Upload"])
 
-# Static files
+# Mount static directories
+print("Mounting static directories...")
+
+# Check if directories exist before mounting
+products_dir = Path("app/uploads/products")
+if products_dir.exists():
+    print(f"Products directory exists: {products_dir.absolute()}")
+else:
+    print(f"Products directory does not exist: {products_dir.absolute()}")
+    # Try to create it again
+    products_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Created products directory: {products_dir.absolute()}")
+
+app.mount("/uploads", StaticFiles(directory="app/uploads"), name="uploads")
 app.mount("/uploads/pet_images", StaticFiles(directory="app/uploads/pet_images"), name="pet_images")
-app.mount("/uploads/messages", StaticFiles(directory="app/uploads/messages"), name="message_images")
 app.mount("/uploads/products", StaticFiles(directory="app/uploads/products"), name="product_images")
+app.mount("/uploads/messages", StaticFiles(directory="app/uploads/messages"), name="message_images")
 app.mount("/uploads/success_stories", StaticFiles(directory="app/uploads/success_stories"), name="stories_images")
+
+print("Static directories mounted successfully")
 
 # Health check endpoints - Railway specific
 @app.get("/health", status_code=status.HTTP_200_OK, tags=["Health Check"])
