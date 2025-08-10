@@ -765,7 +765,7 @@ class VoucherUsage(Base):
     id = Column(Integer, primary_key=True, index=True)
     voucher_id = Column(Integer, ForeignKey('vouchers.id'), nullable=False)
     user_id = Column(Integer, ForeignKey('xxaccount_db.id'), nullable=False)
-    # order_id = Column(Integer, ForeignKey('orders.order_id'), nullable=False)
+    order_id = Column(Integer, ForeignKey('orders.order_id'), nullable=False)
     discount_amount = Column(Numeric(10, 2), nullable=False)
     shipping_discount = Column(Numeric(10, 2), default=0)
     used_at = Column(DateTime, default=datetime.utcnow)
@@ -773,7 +773,7 @@ class VoucherUsage(Base):
     # Relationships
     voucher = relationship("Voucher", back_populates="usages")
     user = relationship("User", foreign_keys=[user_id])
-    # order = relationship("Order", foreign_keys=[order_id])
+    order = relationship("Order", foreign_keys=[order_id])
 
 class UserVoucher(Base):
     __tablename__ = "user_vouchers"
