@@ -8,6 +8,7 @@ import shutil
 import os
 from typing import Union
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from app.database.database import get_db
 from app.models.models import (
@@ -610,3 +611,4 @@ async def get_product_image(filename: str):
         )
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"Error serving image: {str(e)}")
+
