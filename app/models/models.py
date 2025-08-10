@@ -385,7 +385,12 @@ class User(Base):
 
 
     # Relationships
-    address = relationship("Address", back_populates="user")
+    address = relationship(
+        "Address",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        foreign_keys="Address.user_id"
+    )
     notification_settings = relationship("Notification", back_populates="user")
     user_notifications = relationship("UserNotification", back_populates="user")
     adoption_forms = relationship("AdoptionForm", back_populates="user", cascade="all, delete-orphan")
@@ -458,6 +463,7 @@ class Address(Base):
     __tablename__ = "xxaddress_db"
     
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('xxaccount_db.id'), nullable=False)
     street = Column(String, nullable=False)
     barangay = Column(String, nullable=False)
     city = Column(String, nullable=False)
