@@ -785,3 +785,185 @@ class UserVoucher(Base):
     user = relationship("User", foreign_keys=[user_id])
     voucher = relationship("Voucher")
     assigned_by_user = relationship("User", foreign_keys=[assigned_by])
+
+
+
+
+
+
+
+
+
+
+# E-commerce Models
+class ProductCategory(Base):
+    __tablename__ = "product_categories"
+    
+    category_id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    description = Column(Text)
+    parent_category_id = Column(Integer, ForeignKey('product_categories.category_id'))
+    image_url = Column(String(255))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    parent_category = relationship(
+        "ProductCategory",
+        remote_side=lambda: [ProductCategory.category_id],
+        backref="subcategories"
+    )
+
+    product = relationship("Product", back_populates="category")
+    
+class Product(Base):
+    __tablename__ = "product"
+    
+    product_id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text)
+    price = Column(Numeric(10, 2), nullable=False)
+    discounted_price = Column(Numeric(10, 2))
+    stock_quantity = Column(Integer, default=0)
+    category_id = Column(Integer, ForeignKey("product_categories.category_id", ondelete="SET NULL"))
+    sku = Column(String(100), unique=True)
+    image_url = Column(String(255))
+    weight = Column(Numeric(10, 2))
+    dimensions = Column(String(100))
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    
+    category = relationship("ProductCategory", back_populates="product")
+    reviews = relationship("ProductReview", back_populates="product")
+    cart_items = relationship("CartItem", back_populates="product")
+    order_items = relationship("OrderItem", back_populates="product")
+    inventory_logs = relationship("InventoryLog", back_populates="product")
+
+class Cart(Base):
+    __tablename__ = "cart"
+    
+    cart_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('xxaccount_db.id'), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = relationship("User")
+    items = relationship("CartItem", back_populates="cart", cascade="all, delete-orphan")
+
+class CartItem(Base):
+    __tablename__ = "cart_items"
+    
+    cart_item_id = Column(Integer, primary_key=True, index=True)
+    cart_id = Column(Integer, ForeignKey('cart.cart_id'), nullable=False)
+    product_id = Column(Integer, ForeignKey('product.product_id'), nullable=False)
+    quantity = Column(Integer, default=1)
+    added_at = Column(DateTime, default=datetime.utcnow)
+    
+    cart = relationship("Cart", back_populates="items")
+    product = relationship("Product", back_populates="cart_items")
+
+class Order(Base):
+    __tablename__ = "orders"
+    order_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('xxaccount_db.id'), nullable=False)
+    order_date = Column(DateTime, default=datetime.utcnow)
+    status = Column(String(20), default='pending')
+    total_amount = Column(Numeric(10, 2), nullable=False)
+    payment_method = Column(String(50), nullable=False)
+    delivery_type = Column(String(20), default='delivery')  # 'delivery' or 'pickup'
+    delivery_fee = Column(Numeric(10, 2), default=0.00)  # New delivery fee column
+    shipping_address_id = Column(Integer, ForeignKey('xxaddress_db.id'))
+    billing_address_id = Column(Integer, ForeignKey('xxaddress_db.id'))
+    tracking_number = Column(String(100))
+    delivery_date = Column(DateTime)
+    admin_notes = Column(Text)
+    
+    user = relationship("User")
+    shipping_address = relationship("Address", foreign_keys=[shipping_address_id])
+    billing_address = relationship("Address", foreign_keys=[billing_address_id])
+    items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+    transactions = relationship("Transaction", back_populates="order")
+
+class OrderItem(Base):
+    __tablename__ = "order_items"
+    
+    item_id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey('orders.order_id'), nullable=False)
+    product_id = Column(Integer, ForeignKey('product.product_id'), nullable=False)
+    quantity = Column(Integer, nullable=False)
+    unit_price = Column(Numeric(10, 2), nullable=False)
+    subtotal = Column(Numeric(10, 2), nullable=False)
+    discount_applied = Column(Numeric(10, 2), default=0)
+    status = Column(String(50))
+    
+    order = relationship("Order", back_populates="items")
+    product = relationship("Product", back_populates="order_items")
+
+class Transaction(Base):
+    __tablename__ = "transactions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey('orders.order_id'), nullable=False)
+    amount = Column(Numeric(10, 2), nullable=False)
+    payment_method = Column(String(50), nullable=False)
+    transaction_date = Column(DateTime, default=datetime.utcnow)
+    status = Column(String(20), default='pending')
+    gateway_response = Column(Text)
+    transaction_reference = Column(String(255))
+    
+    order = relationship("Order", back_populates="transactions")
+
+class ProductReview(Base):
+    __tablename__ = "product_reviews"
+    
+    review_id = Column(Integer, primary_key=True)
+    product_id = Column(Integer, ForeignKey("product.product_id"), nullable=False)
+    user_id = Column(Integer, ForeignKey('xxaccount_db.id'), nullable=False)
+    order_id = Column(Integer, ForeignKey('orders.order_id'))
+    rating = Column(Integer, nullable=False)
+    review_text = Column(Text)
+    review_date = Column(DateTime, default=datetime.utcnow)
+    is_approved = Column(Boolean, default=False)
+    
+    product = relationship("Product", back_populates="reviews")
+    user = relationship("User")
+    order = relationship("Order")
+
+class InventoryLog(Base):
+    __tablename__ = "inventory_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey('product.product_id'), nullable=False)
+    change_quantity = Column(Integer, nullable=False)
+    current_quantity = Column(Integer, nullable=False)
+    reason = Column(String(100), nullable=False)
+    reference_id = Column(String(100))
+    log_date = Column(DateTime, default=datetime.utcnow)
+    product_name_snapshot = Column(String, nullable=True)
+    
+    product = relationship("Product", back_populates="inventory_logs")
+
+class Promotion(Base):
+    __tablename__ = "promotions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(50), unique=True, nullable=False)
+    discount_type = Column(String(10), nullable=False)
+    discount_value = Column(Numeric(10, 2), nullable=False)
+    start_date = Column(DateTime, nullable=False)
+    end_date = Column(DateTime, nullable=False)
+    min_order_amount = Column(Numeric(10, 2), default=0)
+    max_uses = Column(Integer)
+    current_uses = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True)
+
+class Checkout(Base):
+    __tablename__ = "checkout"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('xxaccount_db.id'), nullable=False)
+    address_id = Column(Integer, ForeignKey('xxaddress_db.id'), nullable=False)
+    total_price = Column(Numeric(10, 2), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    # Add more fields as needed (status, payment_method, etc.)
+
+    user = relationship("User")
+    address = relationship("Address")
