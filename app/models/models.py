@@ -465,9 +465,14 @@ class Address(Base):
     country = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, onupdate=datetime.utcnow)
-    
-    # Relationship
-    user = relationship("User", back_populates="address")
+    user_id = Column(Integer, ForeignKey('xxaccount_db.id'), nullable=False)
+
+    user = relationship(
+        "User",
+        back_populates="addresses",
+        foreign_keys=[user_id]
+    )
+
 
 
 class Notification(Base):
