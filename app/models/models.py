@@ -363,6 +363,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB  # For PostgreSQL
 from app.database.database import Base
 from datetime import datetime
+from pydantic import BaseModel, Field, HttpUrl
+from datetime import datetime
+from typing import List, Optional
+from enum import Enum
 
 class User(Base):
     __tablename__ = "xxaccount_db"
