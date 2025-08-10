@@ -387,8 +387,13 @@ app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
 origins = [
     "http://localhost:3000",
     "https://smart-pet-eta.vercel.app",
+    "https://smart-pet-frontend.vercel.app",
+    "https://smart-pet-git-main-swift-2024.vercel.app",
     settings.FRONTEND_URL if hasattr(settings, 'FRONTEND_URL') else "http://localhost:3000"
 ]
+
+# Remove duplicates and filter out None values
+origins = list(set([origin for origin in origins if origin]))
 
 app.add_middleware(
     CORSMiddleware,
