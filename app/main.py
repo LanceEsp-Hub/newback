@@ -424,6 +424,7 @@ app.include_router(ecommerce_router.router)
 # Static files
 app.mount("/uploads/pet_images", StaticFiles(directory="app/uploads/pet_images"), name="pet_images")
 app.mount("/uploads/messages", StaticFiles(directory="app/uploads/messages"), name="message_images")
+app.mount("/uploads/products", StaticFiles(directory="app/uploads/products"), name="product_images")
 app.mount("/uploads/success_stories", StaticFiles(directory="app/uploads/success_stories"), name="stories_images")
 
 # Health check endpoints - Railway specific
