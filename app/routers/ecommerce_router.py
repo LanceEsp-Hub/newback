@@ -589,3 +589,24 @@ def get_delivery_fee(db: Session = Depends(get_db)):
         "free_shipping_threshold": float(settings.free_shipping_threshold) if settings.free_shipping_threshold else None
 
     }
+
+@router.get("/product-image/{filename:path}")
+async def get_product_image(filename: str):
+    """Serve product images with proper error handling"""
+    try:
+        # Construct the file path
+        file_path = Path("app/uploads/products") / filename
+        
+        # Check if file exists
+        if not file_path.exists():
+            # Return a default placeholder image or 404
+            raise HTTPException(status_code=404, detail="Product image not found")
+        
+        # Return the file
+        return FileResponse(
+            path=str(file_path),
+            media_type="image/jpeg",  # You might want to detect this dynamically
+            filename=filename
+        )
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Error serving image: {str(e)}")
