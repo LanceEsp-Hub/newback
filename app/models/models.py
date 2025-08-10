@@ -967,3 +967,196 @@ class Checkout(Base):
 
     user = relationship("User")
     address = relationship("Address")
+
+class DeliverySettings(Base):
+    __tablename__ = "delivery_settings"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    delivery_fee = Column(Numeric(10, 2), default=50.00, nullable=False)
+    free_shipping_threshold = Column(Numeric(10, 2), nullable=True)  # Order amount for free shipping
+    is_active = Column(Boolean, default=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by = Column(Integer, ForeignKey('xxaccount_db.id'), nullable=True)
+    
+    # Relationships
+    updated_by_user = relationship("User", foreign_keys=[updated_by])
+
+class ProductCategoryCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    parent_category_id: Optional[int] = None
+    image_url: Optional[str] = None
+
+class ProductCategoryResponse(ProductCategoryCreate):
+    id: int
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class ProductCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    price: float = Field(..., gt=0)
+    discounted_price: Optional[float] = Field(None, gt=0)
+    stock_quantity: int = Field(0, ge=0)
+    category_id: Optional[int] = None
+    sku: str
+    image_url: Optional[str] = None
+    weight: Optional[float] = Field(None, gt=0)
+    dimensions: Optional[str] = None
+    is_active: bool = True
+
+class ProductResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str]
+    price: float
+    discounted_price: Optional[float]
+    stock_quantity: int
+    category_id: Optional[int]
+    sku: str
+    image_url: Optional[str]
+    is_active: bool
+    
+    class Config:
+        from_attributes = True
+
+class ProductUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = Field(None, gt=0)
+    discounted_price: Optional[float] = Field(None, gt=0)
+    stock_quantity: Optional[int] = Field(None, ge=0)
+    category_id: Optional[int] = None
+    sku: Optional[str] = None
+    image_url: Optional[str] = None
+    weight: Optional[float] = Field(None, gt=0)
+    dimensions: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class ProductAdminResponse(ProductResponse):
+    created_at: datetime
+    updated_at: datetime
+    weight: Optional[float]
+    dimensions: Optional[str]
+    
+    class Config:
+        from_attributes = True
+
+class CartItemCreate(BaseModel):
+    product_id: int
+    quantity: int = Field(1, gt=0)
+    user_id: int
+    
+class CartItemResponse(BaseModel):
+    id: int
+    product: ProductResponse
+    quantity: int
+    added_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class CartResponse(BaseModel):
+    id: int
+    user_id: int
+    items: List[CartItemResponse]
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class OrderStatus(str, Enum):
+    pending = "pending"
+    approved = "approved"
+    denied = "denied"
+    processing = "processing"
+    shipped = "shipped"
+    delivered = "delivered"
+    cancelled = "cancelled"
+    returned = "returned"
+
+class OrderItemCreate(BaseModel):
+    product_id: int
+    quantity: int
+    unit_price: float
+    subtotal: float
+    discount_applied: float = 0
+
+class OrderCreate(BaseModel):
+    shipping_address_id: int
+    billing_address_id: Optional[int] = None
+    payment_method: str
+    items: List[OrderItemCreate]
+
+class OrderItemResponse(BaseModel):
+    id: int
+    product: ProductResponse
+    quantity: int
+    unit_price: float
+    subtotal: float
+    discount_applied: float
+    
+    class Config:
+        from_attributes = True
+
+class OrderResponse(BaseModel):
+    id: int
+    user_id: int
+    order_date: datetime
+    status: OrderStatus
+    total_amount: float
+    payment_method: str
+    items: List[OrderItemResponse]
+    
+    class Config:
+        from_attributes = True
+
+class TransactionStatus(str, Enum):
+    pending = "pending"
+    completed = "completed"
+    failed = "failed"
+    refunded = "refunded"
+
+class TransactionResponse(BaseModel):
+    id: int
+    order_id: int
+    amount: float
+    payment_method: str
+    transaction_date: datetime
+    status: TransactionStatus
+    
+    class Config:
+        from_attributes = True
+
+class ProductReviewCreate(BaseModel):
+    product_id: int
+    rating: int = Field(..., ge=1, le=5)
+    review_text: Optional[str] = None
+
+class ProductReviewResponse(ProductReviewCreate):
+    id: int
+    user_id: int
+    review_date: datetime
+    
+    class Config:
+        from_attributes = True
+
+class PromotionCreate(BaseModel):
+    code: str
+    discount_type: str
+    discount_value: float
+    start_date: datetime
+    end_date: datetime
+    min_order_amount: float = 0
+    max_uses: Optional[int] = None
+    is_active: bool = True
+
+class PromotionResponse(PromotionCreate):
+    id: int
+    current_uses: int
+    
+    class Config:
+        from_attributes = True
