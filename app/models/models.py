@@ -467,7 +467,8 @@ class Address(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, onupdate=datetime.utcnow)
 
-
+# Relationship
+    user = relationship("User", back_populates="address")
 
 class Notification(Base):
     __tablename__ = "xxnotifications_db"
