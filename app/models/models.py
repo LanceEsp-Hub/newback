@@ -709,3 +709,73 @@ class Location(Base):
     
     # Relationship
     device = relationship("Device", back_populates="locations")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class Voucher(Base):
+    __tablename__ = "vouchers"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(50), unique=True, nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    description = Column(Text)
+    discount_type = Column(String(20), nullable=False)  # 'percentage' or 'fixed'
+    discount_value = Column(Numeric(10, 2), nullable=False)
+    min_order_amount = Column(Numeric(10, 2), default=0)
+    max_discount = Column(Numeric(10, 2), nullable=True)  # For percentage discounts
+    free_shipping = Column(Boolean, default=False)
+    usage_limit = Column(Integer, nullable=True)  # Total usage limit
+    used_count = Column(Integer, default=0)
+    start_date = Column(DateTime, nullable=False)
+    end_date = Column(DateTime, nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by = Column(Integer, ForeignKey('xxaccount_db.id'), nullable=True)
+    
+    # Relationships
+    creator = relationship("User", foreign_keys=[created_by])
+    usages = relationship("VoucherUsage", back_populates="voucher")
+
+class VoucherUsage(Base):
+    __tablename__ = "voucher_usages"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    voucher_id = Column(Integer, ForeignKey('vouchers.id'), nullable=False)
+    user_id = Column(Integer, ForeignKey('xxaccount_db.id'), nullable=False)
+    # order_id = Column(Integer, ForeignKey('orders.order_id'), nullable=False)
+    discount_amount = Column(Numeric(10, 2), nullable=False)
+    shipping_discount = Column(Numeric(10, 2), default=0)
+    used_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    voucher = relationship("Voucher", back_populates="usages")
+    user = relationship("User", foreign_keys=[user_id])
+    # order = relationship("Order", foreign_keys=[order_id])
+
+class UserVoucher(Base):
+    __tablename__ = "user_vouchers"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('xxaccount_db.id'), nullable=False)
+    voucher_id = Column(Integer, ForeignKey('vouchers.id'), nullable=False)
+    assigned_at = Column(DateTime, default=datetime.utcnow)
+    assigned_by = Column(Integer, ForeignKey('xxaccount_db.id'), nullable=True)  # Admin who assigned it
+    is_active = Column(Boolean, default=True)
+    
+    # Relationships
+    user = relationship("User", foreign_keys=[user_id])
+    voucher = relationship("Voucher")
+    assigned_by_user = relationship("User", foreign_keys=[assigned_by])
