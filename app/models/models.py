@@ -385,12 +385,10 @@ class User(Base):
 
 
     # Relationships
-    address = relationship(
-        "Address",
-        back_populates="user",
-        cascade="all, delete-orphan",
-        foreign_keys="Address.user_id"
-    )
+    address = relationship("Address", 
+                           back_populates="user",
+                           foreign_keys="Address.user_id",  # Explicitly specify
+                           cascade="all, delete-orphan")
     notification_settings = relationship("Notification", back_populates="user")
     user_notifications = relationship("UserNotification", back_populates="user")
     adoption_forms = relationship("AdoptionForm", back_populates="user", cascade="all, delete-orphan")
@@ -474,7 +472,9 @@ class Address(Base):
     updated_at = Column(DateTime, onupdate=datetime.utcnow)
 
 # Relationship
-    user = relationship("User", back_populates="address")
+    user = relationship("User", 
+                       back_populates="address",
+                       foreign_keys=[user_id])  # Explicitly specify
 
 class Notification(Base):
     __tablename__ = "xxnotifications_db"
