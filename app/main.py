@@ -352,7 +352,8 @@ from .routers import (
     security_router,
     file_upload_router,
     device_router,
-    voucher_router
+    voucher_router,
+    ecommerce_router
 )
 from .core.config import settings
 from pathlib import Path
@@ -405,6 +406,7 @@ app.include_router(security_router.router)
 
 app.include_router(device_router.router)
 app.include_router(voucher_router.router)
+app.include_router(ecommerce_router.router)
 
 
 # app.include_router(user_router.router, prefix="/api/users", tags=["Users"])
